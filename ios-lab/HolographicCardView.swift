@@ -14,13 +14,14 @@ import CoreMotion
 
 struct HolographicCardView: View {
     enum FoilMode: Int, CaseIterable, Identifiable {
-        case aurora, silver, rainbow
+        case aurora, silver, rainbow, pearl
         var id: Int { rawValue }
         var title: String {
             switch self {
             case .aurora: return "极光"
             case .silver: return "银彩"
             case .rainbow: return "虹箔"
+            case .pearl: return "全息"
             }
         }
     }
@@ -131,6 +132,19 @@ private struct HoloCard: View {
     private var shaderShiftX: Double { tiltX + spinAngle / 180 }
 
     var body: some View {
+        Group {
+            if mode == .pearl {
+                PearlCard(tiltX: tiltX, tiltY: tiltY,
+                          shaderShiftX: shaderShiftX, cardSize: cardSize)
+            } else {
+                classicCard
+            }
+        }
+        .frame(width: cardSize.width, height: cardSize.height)
+        .shadow(color: .black.opacity(0.55), radius: 28, y: 18)
+    }
+
+    private var classicCard: some View {
         ZStack {
             // 金属银边框
             RoundedRectangle(cornerRadius: 26, style: .continuous)
@@ -149,8 +163,6 @@ private struct HoloCard: View {
             content
                 .padding(frameWidth)
         }
-        .frame(width: cardSize.width, height: cardSize.height)
-        .shadow(color: .black.opacity(0.55), radius: 28, y: 18)
     }
 
     private var foil: some View {
@@ -249,6 +261,133 @@ private struct HoloCard: View {
     }
 
     private func smoothstep(_ edge0: Double, _ edge1: Double, _ x: Double) -> Double {
+        let t = min(max((x - edge0) / (edge1 - edge0), 0), 1)
+        return t * t * (3 - 2 * t)
+    }
+}
+
+// MARK: - 珠光全息卡（第 4 种样式）
+
+/// 复刻参考视频中的 HOLOGRAPHIC 收藏卡：浅银珠光卡面，
+/// 倾斜时整卡（包括深色照片区）泛起大面积柔和彩虹。
+private struct PearlCard: View {
+    let tiltX: Double
+    let tiltY: Double
+    let shaderShiftX: Double
+    let cardSize: CGSize
+
+    private let ink = Color(white: 0.13)
+
+    var body: some View {
+        TimelineView(.animation) { timeline in
+            let t = timeline.date.timeIntervalSinceReferenceDate
+                .truncatingRemainder(dividingBy: 1000)
+
+            ZStack {
+                // 珠光底面
+                Rectangle()
+                    .fill(.white)
+                    .colorEffect(pearlShader(time: t, layer: 0))
+
+                content
+
+                // 彩虹光晕叠加层：把彩虹也洗到深色照片区上
+                Rectangle()
+                    .fill(.white)
+                    .colorEffect(pearlShader(time: t, layer: 1))
+                    .blendMode(.plusLighter)
+                    .opacity(0.22)
+                    .allowsHitTesting(false)
+            }
+            .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
+        }
+    }
+
+    private func pearlShader(time: Double, layer: Double) -> Shader {
+        ShaderLibrary.holographicPearl(
+            .float2(Float(cardSize.width), Float(cardSize.height)),
+            .float2(Float(shaderShiftX), Float(tiltY)),
+            .float(Float(time)),
+            .float(Float(layer))
+        )
+    }
+
+    private var content: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            HStack(alignment: .firstTextBaseline) {
+                Text("Liko's Studio")
+                    .font(.system(size: 18, weight: .bold))
+                Spacer()
+                Text("LV 99")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(ink.opacity(0.65))
+            }
+            .padding(.horizontal, 16)
+            .padding(.top, 16)
+
+            photoPanel
+                .padding(.horizontal, 14)
+                .padding(.top, 12)
+
+            HStack {
+                Text("Liko")
+                    .font(.system(size: 17, weight: .bold))
+                Spacer()
+                HStack(spacing: 2) {
+                    ForEach(0..<5, id: \.self) { _ in
+                        Image(systemName: "star.fill").font(.system(size: 10))
+                    }
+                }
+            }
+            .padding(.horizontal, 16)
+            .padding(.top, 14)
+
+            Text("每天做一个小交互的设计师，倾斜会泛起一身彩虹。")
+                .font(.system(size: 12))
+                .foregroundStyle(ink.opacity(0.62))
+                .lineSpacing(3)
+                .padding(.horizontal, 16)
+                .padding(.top, 6)
+
+            Spacer()
+
+            HStack {
+                Text("HOLOGRAPHIC")
+                    .font(.system(size: 9, weight: .semibold))
+                    .kerning(2.5)
+                    .foregroundStyle(ink.opacity(0.55))
+                Spacer()
+                Text("✦ 1/1")
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundStyle(ink.opacity(0.75))
+            }
+            .padding(.horizontal, 16)
+            .padding(.bottom, 14)
+        }
+        .foregroundStyle(ink)
+    }
+
+    /// 深色照片区：暗底 + 柔光晕，中央是会“变脸”的表情
+    private var photoPanel: some View {
+        let smile = pearlSmoothstep(0.35, 0.65, abs(tiltX))
+        return ZStack {
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .fill(Color(red: 0.13, green: 0.13, blue: 0.14))
+            RadialGradient(colors: [Color(red: 0.32, green: 0.34, blue: 0.30).opacity(0.9), .clear],
+                           center: .center, startRadius: 20, endRadius: 160)
+                .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+
+            ZStack {
+                Text("😉").opacity(1 - smile)
+                Text("😄").opacity(smile)
+            }
+            .font(.system(size: 118))
+            .shadow(color: .black.opacity(0.4), radius: 14, y: 10)
+        }
+        .frame(height: 262)
+    }
+
+    private func pearlSmoothstep(_ edge0: Double, _ edge1: Double, _ x: Double) -> Double {
         let t = min(max((x - edge0) / (edge1 - edge0), 0), 1)
         return t * t * (3 - 2 * t)
     }

@@ -84,3 +84,39 @@ static inline float sparkleLayer(float2 p, float cell, float shift, float time, 
 
     return half4(half3(clamp(base, 0.0, 1.6)), 1.0h) * color.a;
 }
+
+/// 珠光全息卡（第 4 种样式）：浅银底上流动的大面积柔和彩虹光晕。
+/// layer: 0 = 卡片底面（银白 + 彩虹）；1 = 叠加层（只输出彩虹光，用 plusLighter 洗亮深色内容）
+[[ stitchable ]] half4 holographicPearl(float2 position, half4 color,
+                                        float2 size, float2 tilt,
+                                        float time, float layer) {
+    float2 uv = position / size;
+    float shift = tilt.x * 1.1 + tilt.y * 0.4;
+
+    // 低频弯曲的色相场：宽幅柔和的彩虹涌动
+    float f = uv.x * 0.60 - uv.y * 0.30
+            + 0.28 * sin(uv.y * 2.6 + shift * 1.5 + 0.8)
+            + 0.22 * sin(uv.x * 3.1 - shift * 2.0);
+    float3 rainbow = hsv2rgb(float3(fract(f + shift), 0.55, 1.0));
+
+    // 彩虹可见度掩罩：随倾斜整片涌来退去
+    float mask = 0.30 + 0.70 * (0.5 + 0.5 * sin(uv.x * 2.0 + uv.y * 1.3 + shift * 3.0 + 1.7));
+    mask *= 0.60 + 0.40 * sin(uv.y * 1.4 - shift * 2.2 + 0.5);
+    mask = clamp(mask, 0.0, 1.0);
+
+    // 细碎珠光颗粒 + 微小闪点
+    float grain = (hash21(floor(position * 0.9)) - 0.5) * 0.05;
+    float glint = sparkleLayer(position, 7.0, shift, time, 0.90) * 0.35;
+
+    if (layer > 0.5) {
+        float3 c = rainbow * mask * 0.85 + glint;
+        return half4(half3(clamp(c, 0.0, 1.0)), 1.0h) * color.a;
+    }
+
+    float3 base = float3(0.905, 0.910, 0.918) + grain;
+    base = mix(base, rainbow, mask * 0.50);
+    float sd = uv.x * 0.7 + uv.y * 0.5 - 0.6 - shift;
+    base += exp(-sd * sd * 10.0) * 0.10;
+    base += glint;
+    return half4(half3(clamp(base, 0.0, 1.2)), 1.0h) * color.a;
+}
