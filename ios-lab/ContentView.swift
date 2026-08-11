@@ -9,13 +9,17 @@ import SwiftUI
 
 struct ContentView: View {
     var body: some View {
-        VStack {
-            Image(systemName: "globe")
-                .imageScale(.large)
-                .foregroundStyle(.tint)
-            Text("Hello, world!")
+        NavigationStack {
+            List {
+                NavigationLink("镭射闪光卡片") {
+                    HolographicCardView()
+                }
+                NavigationLink("卷带槽元素复刻") {
+                    WindingSlotElementsView()
+                }
+            }
+            .navigationTitle("ios-lab")
         }
-        .padding()
     }
 }
 

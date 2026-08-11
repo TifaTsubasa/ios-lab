@@ -30,6 +30,7 @@ ios-lab/
 
 | Demo | 文件 | 说明 |
 | ---- | ---- | ---- |
+| 镭射闪光卡片 | `HolographicCardView.swift` + `HolographicFoil.metal` | 全息镭射卡片，Metal shader 渲染彩虹箔/银彩/极光箔面与闪粉星光，跟随陀螺仪或拖拽流动，甩动可翻转 |
 | 卷带槽元素复刻 | `WindingSlotElementsView.swift` | 复刻参考图中卷带槽、滑块条、导向线等素材元素的静态外观 |
 
 ## 开发约定
