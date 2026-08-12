@@ -1,0 +1,46 @@
+{
+  "version": 1,
+  "doc": "RustCore IPC 契约：唯一真相。改动此文件后运行 `make ipc` 重新生成 TS / Swift / Rust 三端客户端。",
+  "types": {
+    "Hit": {
+      "name": "string",
+      "path": "string",
+      "score": "f32",
+      "sizeBytes": "u32"
+    }
+  },
+  "commands": [
+    {
+      "name": "buildIndex",
+      "doc": "扫描给定根目录，在 Rust 侧建立文件索引",
+      "request": {
+        "roots": "string[]"
+      },
+      "response": {
+        "fileCount": "u32",
+        "elapsedMs": "u32"
+      }
+    },
+    {
+      "name": "search",
+      "doc": "在已建索引上做模糊搜索，按得分排序返回",
+      "request": {
+        "query": "string",
+        "limit": "u32"
+      },
+      "response": {
+        "hits": "Hit[]",
+        "elapsedMicros": "u32"
+      }
+    },
+    {
+      "name": "coreInfo",
+      "doc": "读取 core 版本与当前索引规模",
+      "request": {},
+      "response": {
+        "version": "string",
+        "indexedFiles": "u32"
+      }
+    }
+  ]
+}

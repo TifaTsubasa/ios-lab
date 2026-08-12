@@ -1,0 +1,13 @@
+# Rust
+target/
+
+# Node / Web
+node_modules/
+web/dist/
+
+# Xcode
+build/
+DerivedData/
+xcuserdata/
+*.xcuserstate
+.DS_Store

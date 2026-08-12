@@ -17,6 +17,9 @@ struct ContentView: View {
                 NavigationLink("卷带槽元素复刻") {
                     WindingSlotElementsView()
                 }
+                NavigationLink("RustCore 跨端架构") {
+                    RustCoreLabView()
+                }
             }
             .navigationTitle("ios-lab")
         }
