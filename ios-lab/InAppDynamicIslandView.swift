@@ -1,0 +1,514 @@
+//
+//  InAppDynamicIslandView.swift
+//  ios-lab
+//
+//  App 内灵动岛：在挖孔坐标处画一个纯黑胶囊压住系统灵动岛，外圈描一圈红色边框。
+//  系统灵动岛由系统在所有 App 之上的图层渲染，App 画不上去，只能靠「黑对黑」融为一体。
+//  进入页面时会结束本 App 自己所有正在运行的 Live Activity。
+//
+
+import SwiftUI
+#if os(iOS)
+import ActivityKit
+import UIKit
+#endif
+
+// MARK: - 主视图
+
+struct InAppDynamicIslandView: View {
+    @Environment(\.dismiss) private var dismiss
+
+    @State private var phase: IslandPhase = .collapsed
+    @State private var metrics = IslandMetrics()
+    /// 默认白底：黑胶囊和真实挖孔在白色上对比最强，一眼能看出有没有对齐。
+    @State private var useDarkBackground = false
+    @State private var cleanup: LiveActivityCleanupState = .running
+    @State private var showTuning = false
+
+    private var foreground: Color { useDarkBackground ? .white : Color(red: 0.11, green: 0.10, blue: 0.13) }
+
+    var body: some View {
+        ZStack(alignment: .top) {
+            background
+
+            infoScroll
+
+            islandLayer
+        }
+        .task {
+            cleanup = await LiveActivityCleaner.endAllOwnActivities()
+        }
+        // 导航栏会画在岛体之上、返回按钮正好压住展开态，这里整条隐藏，改用页面内的返回按钮。
+        .toolbar(.hidden, for: .navigationBar)
+    }
+
+    private var background: some View {
+        Group {
+            if useDarkBackground {
+                Color(red: 0.05, green: 0.04, blue: 0.07)
+            } else {
+                Color.white
+            }
+        }
+        .ignoresSafeArea()
+    }
+
+    // MARK: - 灵动岛图层
+
+    /// 独立铺满全屏（含安全区）的一层，只承载岛体本身，保证它压在页面最上方。
+    private var islandLayer: some View {
+        VStack(spacing: 0) {
+            island
+                .padding(.top, metrics.topInset)
+            Spacer(minLength: 0)
+        }
+        .ignoresSafeArea()
+    }
+
+    private var island: some View {
+        let size = metrics.size(for: phase)
+        let radius = metrics.cornerRadius(for: phase)
+        let shape = RoundedRectangle(cornerRadius: radius, style: .continuous)
+        let ringInset = metrics.ringGap + metrics.ringWidth
+
+        return ZStack {
+            compactContent
+                .opacity(phase == .compact ? 1 : 0)
+
+            expandedContent
+                .opacity(phase == .expanded ? 1 : 0)
+        }
+        .frame(width: size.width, height: size.height)
+        .background(Color.black, in: shape)
+        .clipShape(shape)
+        .overlay {
+            RoundedRectangle(cornerRadius: radius + ringInset, style: .continuous)
+                .strokeBorder(Color.red, lineWidth: metrics.ringWidth)
+                .frame(width: size.width + ringInset * 2,
+                       height: size.height + ringInset * 2)
+        }
+        .contentShape(shape)
+        .onTapGesture { advancePhase() }
+    }
+
+    /// 紧凑态：左右各露出一点内容，中间必须给真实挖孔留空。
+    private var compactContent: some View {
+        HStack(spacing: 0) {
+            Image(systemName: "music.note")
+                .font(.system(size: 15, weight: .semibold))
+                .foregroundStyle(Color(red: 0.98, green: 0.45, blue: 0.32))
+                .frame(width: metrics.compactSideWidth)
+
+            Spacer(minLength: metrics.collapsedWidth)
+
+            Image(systemName: "waveform")
+                .font(.system(size: 15, weight: .semibold))
+                .foregroundStyle(Color(red: 0.98, green: 0.45, blue: 0.32))
+                .symbolEffect(.variableColor.iterative, options: .repeating)
+                .frame(width: metrics.compactSideWidth)
+        }
+        .frame(width: metrics.compactWidth)
+    }
+
+    /// 展开态：顶部整条留空，同时避开挖孔和系统状态栏（时间、信号、电量都画在 App 之上）。
+    private var expandedContent: some View {
+        VStack(spacing: 0) {
+            Color.clear
+                .frame(height: metrics.collapsedHeight)
+
+            HStack(spacing: 14) {
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .fill(
+                        LinearGradient(colors: [Color(red: 0.98, green: 0.45, blue: 0.32),
+                                                Color(red: 0.62, green: 0.24, blue: 0.72)],
+                                       startPoint: .topLeading,
+                                       endPoint: .bottomTrailing)
+                    )
+                    .frame(width: 54, height: 54)
+                    .overlay {
+                        Image(systemName: "music.note")
+                            .font(.system(size: 22, weight: .semibold))
+                            .foregroundStyle(.white)
+                    }
+
+                VStack(alignment: .leading, spacing: 3) {
+                    Text("App 内灵动岛")
+                        .font(.system(size: 15, weight: .semibold))
+                        .foregroundStyle(.white)
+
+                    Text("ios-lab · 正在播放")
+                        .font(.system(size: 12))
+                        .foregroundStyle(.white.opacity(0.5))
+                }
+
+                Spacer(minLength: 0)
+
+                Image(systemName: "pause.fill")
+                    .font(.system(size: 20, weight: .semibold))
+                    .foregroundStyle(.white)
+            }
+
+            Spacer(minLength: 8)
+
+            HStack(spacing: 8) {
+                Text("1:12")
+                    .font(.system(size: 11, design: .monospaced))
+                    .foregroundStyle(.white.opacity(0.45))
+
+                Capsule()
+                    .fill(.white.opacity(0.22))
+                    .frame(height: 4)
+                    .overlay(alignment: .leading) {
+                        GeometryReader { proxy in
+                            Capsule()
+                                .fill(.white)
+                                .frame(width: proxy.size.width * 0.34, height: 4)
+                        }
+                    }
+
+                Text("3:40")
+                    .font(.system(size: 11, design: .monospaced))
+                    .foregroundStyle(.white.opacity(0.45))
+            }
+        }
+        .padding(.horizontal, 22)
+        .padding(.bottom, 16)
+        .frame(width: metrics.expandedWidth)
+    }
+
+    private func advancePhase() {
+        withAnimation(.spring(response: 0.42, dampingFraction: 0.72)) {
+            phase = phase.next
+        }
+    }
+
+    // MARK: - 页面说明与控制
+
+    private var infoScroll: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 18) {
+                backButton
+
+                if !DeviceProbe.hasDynamicIsland {
+                    hintCard(symbol: "iphone.gen2",
+                             text: "当前设备没有灵动岛，上方为模拟位置，仅供查看外观。")
+                }
+
+                phasePicker
+
+                cleanupCard
+
+                explanationCard
+
+                Toggle("深色背景", isOn: $useDarkBackground)
+                    .font(.system(size: 14, weight: .medium))
+                    .foregroundStyle(foreground)
+                    .tint(Color(red: 0.98, green: 0.45, blue: 0.32))
+                    .padding(.horizontal, 4)
+
+                tuningSection
+            }
+            .padding(.horizontal, 20)
+            // 让出展开态灵动岛的高度，避免内容被压在下面。
+            .padding(.top, 120)
+            .padding(.bottom, 40)
+        }
+    }
+
+    private var backButton: some View {
+        Button {
+            dismiss()
+        } label: {
+            Label("ios-lab", systemImage: "chevron.left")
+                .font(.system(size: 14, weight: .medium))
+                .foregroundStyle(foreground.opacity(0.75))
+        }
+        .buttonStyle(.plain)
+    }
+
+    private var phasePicker: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("形态")
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundStyle(foreground.opacity(0.5))
+
+            HStack(spacing: 10) {
+                ForEach(IslandPhase.allCases) { item in
+                    Button {
+                        withAnimation(.spring(response: 0.42, dampingFraction: 0.72)) {
+                            phase = item
+                        }
+                    } label: {
+                        Text(item.title)
+                            .font(.system(size: 14, weight: .semibold))
+                            .foregroundStyle(phase == item
+                                             ? (useDarkBackground ? Color.black : Color.white)
+                                             : foreground.opacity(0.7))
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 10)
+                            .background(
+                                Capsule().fill(phase == item ? foreground : foreground.opacity(0.08))
+                            )
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+
+            Text("也可以直接点按上方的岛体循环切换")
+                .font(.system(size: 12))
+                .foregroundStyle(foreground.opacity(0.35))
+        }
+    }
+
+    private var cleanupCard: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Label {
+                Text(cleanup.title)
+                    .font(.system(size: 14, weight: .medium))
+                    .foregroundStyle(foreground)
+            } icon: {
+                Image(systemName: cleanup.symbol)
+                    .foregroundStyle(cleanup.tint)
+            }
+
+            Text("系统不允许一个 App 关闭其他 App 的灵动岛，这里只能清理本 App 自己的 Live Activity。")
+                .font(.system(size: 12))
+                .foregroundStyle(foreground.opacity(0.4))
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(14)
+        .background(
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .fill(foreground.opacity(0.06))
+        )
+    }
+
+    private var explanationCard: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("这个岛是 App 画的")
+                .font(.system(size: 14, weight: .semibold))
+                .foregroundStyle(foreground)
+
+            Text("系统灵动岛渲染在所有 App 之上，App 无法真正盖住它。这里在挖孔坐标处画了一个纯黑胶囊，黑对黑视觉上与挖孔融为一体，红框描在胶囊外侧，真实挖孔正好落在红框里面。")
+                .font(.system(size: 12))
+                .foregroundStyle(foreground.opacity(0.45))
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(14)
+        .background(
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .fill(foreground.opacity(0.06))
+        )
+    }
+
+    private var tuningSection: some View {
+        DisclosureGroup(isExpanded: $showTuning) {
+            VStack(spacing: 14) {
+                tuningSlider(title: "宽度", value: $metrics.collapsedWidth, range: 100...160)
+                tuningSlider(title: "高度", value: $metrics.collapsedHeight, range: 28...50)
+                tuningSlider(title: "顶部距离", value: $metrics.topInset, range: 0...30)
+                tuningSlider(title: "红框间距", value: $metrics.ringGap, range: 0...12)
+
+                Button("恢复默认") {
+                    withAnimation(.snappy) { metrics = IslandMetrics() }
+                }
+                .font(.system(size: 13, weight: .medium))
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            .padding(.top, 12)
+        } label: {
+            Text("微调（对齐挖孔）")
+                .font(.system(size: 14, weight: .medium))
+                .foregroundStyle(foreground)
+        }
+        .tint(foreground.opacity(0.6))
+        .padding(14)
+        .background(
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .fill(foreground.opacity(0.06))
+        )
+    }
+
+    private func tuningSlider(title: String, value: Binding<CGFloat>, range: ClosedRange<CGFloat>) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            HStack {
+                Text(title)
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundStyle(foreground.opacity(0.6))
+                Spacer()
+                Text(String(format: "%.2f", value.wrappedValue))
+                    .font(.system(size: 12, design: .monospaced))
+                    .foregroundStyle(foreground.opacity(0.4))
+            }
+
+            Slider(value: value, in: range)
+                .tint(Color(red: 0.98, green: 0.45, blue: 0.32))
+        }
+    }
+
+    private func hintCard(symbol: String, text: String) -> some View {
+        Label {
+            Text(text)
+                .font(.system(size: 13))
+                .foregroundStyle(foreground.opacity(0.7))
+                .fixedSize(horizontal: false, vertical: true)
+        } icon: {
+            Image(systemName: symbol)
+                .foregroundStyle(.orange)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(14)
+        .background(
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .fill(Color.orange.opacity(0.12))
+        )
+    }
+}
+
+// MARK: - 形态
+
+/// 模拟灵动岛的三种形态。
+private enum IslandPhase: Int, CaseIterable, Identifiable {
+    case collapsed, compact, expanded
+
+    var id: Int { rawValue }
+
+    var title: String {
+        switch self {
+        case .collapsed: return "收起"
+        case .compact: return "紧凑"
+        case .expanded: return "展开"
+        }
+    }
+
+    var next: IslandPhase {
+        IslandPhase(rawValue: (rawValue + 1) % IslandPhase.allCases.count) ?? .collapsed
+    }
+}
+
+// MARK: - 尺寸
+
+/// 灵动岛几何没有公开 API 可取，这里用 iPhone 14 Pro 之后机型的实测值，并允许运行时微调。
+private struct IslandMetrics {
+    var collapsedWidth: CGFloat = 126
+    var collapsedHeight: CGFloat = 37.33
+    /// 在 iPhone 17 Pro 模拟器上量出来的实际值，比常见的 11 略低；不同机型可用下方微调对齐。
+    var topInset: CGFloat = 13.5
+    var ringGap: CGFloat = 3
+    var ringWidth: CGFloat = 2
+
+    var compactWidth: CGFloat = 210
+    var expandedWidth: CGFloat = 371
+    var expandedHeight: CGFloat = 160
+    var expandedCornerRadius: CGFloat = 44
+
+    /// 紧凑态左右两侧可用的内容宽度，中间留给真实挖孔。
+    var compactSideWidth: CGFloat { max(0, (compactWidth - collapsedWidth) / 2) }
+
+    func size(for phase: IslandPhase) -> CGSize {
+        switch phase {
+        case .collapsed: return CGSize(width: collapsedWidth, height: collapsedHeight)
+        case .compact: return CGSize(width: compactWidth, height: collapsedHeight)
+        case .expanded: return CGSize(width: expandedWidth, height: expandedHeight)
+        }
+    }
+
+    func cornerRadius(for phase: IslandPhase) -> CGFloat {
+        switch phase {
+        case .collapsed, .compact: return collapsedHeight / 2
+        case .expanded: return expandedCornerRadius
+        }
+    }
+}
+
+// MARK: - 设备探测
+
+private enum DeviceProbe {
+    /// 用安全区顶部高度粗略判断当前 iPhone 是否带灵动岛。
+    static var hasDynamicIsland: Bool {
+        #if os(iOS)
+        guard UIDevice.current.userInterfaceIdiom == .phone else { return false }
+        let top = UIApplication.shared.connectedScenes
+            .compactMap { $0 as? UIWindowScene }
+            .compactMap { $0.keyWindow?.safeAreaInsets.top }
+            .max() ?? 0
+        return top >= 51
+        #else
+        return false
+        #endif
+    }
+}
+
+// MARK: - Live Activity 清理
+
+#if os(iOS)
+/// 仅用于枚举并结束本 App 自己的 Live Activity，本 Demo 不会启动它。
+struct InAppIslandActivityAttributes: ActivityAttributes {
+    struct ContentState: Codable, Hashable {}
+}
+#endif
+
+/// 页面进入时的清理结果。
+private enum LiveActivityCleanupState {
+    case running
+    case cleared(Int)
+    case empty
+    case disabled
+    case unsupported
+
+    var title: String {
+        switch self {
+        case .running: return "正在检查本 App 的 Live Activity…"
+        case .cleared(let count): return "已结束 \(count) 个本 App 的 Live Activity"
+        case .empty: return "本 App 当前没有运行中的 Live Activity"
+        case .disabled: return "系统未开启实时活动权限"
+        case .unsupported: return "当前平台不支持实时活动"
+        }
+    }
+
+    var symbol: String {
+        switch self {
+        case .running: return "hourglass"
+        case .cleared: return "checkmark.circle.fill"
+        case .empty: return "checkmark.circle"
+        case .disabled: return "exclamationmark.triangle.fill"
+        case .unsupported: return "xmark.circle"
+        }
+    }
+
+    var tint: Color {
+        switch self {
+        case .running: return .gray
+        case .cleared, .empty: return .green
+        case .disabled: return .orange
+        case .unsupported: return .gray
+        }
+    }
+}
+
+private enum LiveActivityCleaner {
+    /// 结束本 App 自己所有正在运行的 Live Activity。无法触及其他 App 的灵动岛。
+    static func endAllOwnActivities() async -> LiveActivityCleanupState {
+        #if os(iOS)
+        guard ActivityAuthorizationInfo().areActivitiesEnabled else { return .disabled }
+
+        let activities = Activity<InAppIslandActivityAttributes>.activities
+        guard !activities.isEmpty else { return .empty }
+
+        for activity in activities {
+            await activity.end(nil, dismissalPolicy: .immediate)
+        }
+        return .cleared(activities.count)
+        #else
+        return .unsupported
+        #endif
+    }
+}
+
+#Preview("App 内灵动岛") {
+    NavigationStack {
+        InAppDynamicIslandView()
+    }
+}

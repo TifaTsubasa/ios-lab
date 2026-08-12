@@ -20,6 +20,9 @@ struct ContentView: View {
                 NavigationLink("RustCore 跨端架构") {
                     RustCoreLabView()
                 }
+                NavigationLink("App 内灵动岛") {
+                    InAppDynamicIslandView()
+                }
             }
             .navigationTitle("ios-lab")
         }
