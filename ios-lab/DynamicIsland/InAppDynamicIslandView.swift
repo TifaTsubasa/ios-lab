@@ -33,6 +33,14 @@ struct InAppDynamicIslandView: View {
 
             infoScroll
 
+            // 展开后铺满全屏的透明层：点岛体以外的任何位置都收起。
+            if phase == .expanded {
+                Color.clear
+                    .contentShape(Rectangle())
+                    .ignoresSafeArea()
+                    .onTapGesture { setPhase(.collapsed) }
+            }
+
             islandLayer
         }
         .task {
@@ -57,10 +65,22 @@ struct InAppDynamicIslandView: View {
 
     /// 独立铺满全屏（含安全区）的一层，只承载岛体本身，保证它压在页面最上方。
     private var islandLayer: some View {
-        VStack(spacing: 0) {
-            island
-                .padding(.top, metrics.topInset)
-            Spacer(minLength: 0)
+        ZStack(alignment: .top) {
+            // 实测：屏幕顶部约 54pt（状态栏整条）收不到触摸，系统图层在 App 之上把点击吃掉了。
+            // 岛体 13.5~50.8pt 整个落在这条死区里，怎么点都没反应，所以用一条从屏幕顶端
+            // 向下延伸进活动区的带子接管「点击展开」。
+            if phase == .collapsed {
+                Color.clear
+                    .frame(height: metrics.tapBandHeight)
+                    .contentShape(Rectangle())
+                    .onTapGesture { setPhase(.expanded) }
+            }
+
+            VStack(spacing: 0) {
+                island
+                    .padding(.top, metrics.topInset)
+                Spacer(minLength: 0)
+            }
         }
         .ignoresSafeArea()
     }
@@ -71,14 +91,11 @@ struct InAppDynamicIslandView: View {
         let shape = RoundedRectangle(cornerRadius: radius, style: .continuous)
         let ringInset = metrics.ringGap + metrics.ringWidth
 
-        return ZStack {
-            compactContent
-                .opacity(phase == .compact ? 1 : 0)
+        let hitInset = ringInset + metrics.hitSlop
 
-            expandedContent
-                .opacity(phase == .expanded ? 1 : 0)
-        }
-        .frame(width: size.width, height: size.height)
+        return expandedContent
+            .opacity(phase == .expanded ? 1 : 0)
+            .frame(width: size.width, height: size.height)
         .background(Color.black, in: shape)
         .clipShape(shape)
         .overlay {
@@ -87,27 +104,16 @@ struct InAppDynamicIslandView: View {
                 .frame(width: size.width + ringInset * 2,
                        height: size.height + ringInset * 2)
         }
-        .contentShape(shape)
-        .onTapGesture { advancePhase() }
-    }
-
-    /// 紧凑态：左右各露出一点内容，中间必须给真实挖孔留空。
-    private var compactContent: some View {
-        HStack(spacing: 0) {
-            Image(systemName: "music.note")
-                .font(.system(size: 15, weight: .semibold))
-                .foregroundStyle(Color(red: 0.98, green: 0.45, blue: 0.32))
-                .frame(width: metrics.compactSideWidth)
-
-            Spacer(minLength: metrics.collapsedWidth)
-
-            Image(systemName: "waveform")
-                .font(.system(size: 15, weight: .semibold))
-                .foregroundStyle(Color(red: 0.98, green: 0.45, blue: 0.32))
-                .symbolEffect(.variableColor.iterative, options: .repeating)
-                .frame(width: metrics.compactSideWidth)
+        // 挖孔本身那一小块屏幕收不到触摸（系统状态栏图层在 App 之上），
+        // 所以点击热区要比胶囊大一圈，让手指落在挖孔边缘也能命中。
+        .overlay {
+            RoundedRectangle(cornerRadius: radius + hitInset, style: .continuous)
+                .fill(.clear)
+                .contentShape(RoundedRectangle(cornerRadius: radius + hitInset, style: .continuous))
+                .frame(width: size.width + hitInset * 2,
+                       height: size.height + hitInset * 2)
+                .onTapGesture { setPhase(phase == .collapsed ? .expanded : .collapsed) }
         }
-        .frame(width: metrics.compactWidth)
     }
 
     /// 展开态：顶部整条留空，同时避开挖孔和系统状态栏（时间、信号、电量都画在 App 之上）。
@@ -176,9 +182,10 @@ struct InAppDynamicIslandView: View {
         .frame(width: metrics.expandedWidth)
     }
 
-    private func advancePhase() {
+    private func setPhase(_ next: IslandPhase) {
+        guard next != phase else { return }
         withAnimation(.spring(response: 0.42, dampingFraction: 0.72)) {
-            phase = phase.next
+            phase = next
         }
     }
 
@@ -194,7 +201,7 @@ struct InAppDynamicIslandView: View {
                              text: "当前设备没有灵动岛，上方为模拟位置，仅供查看外观。")
                 }
 
-                phasePicker
+                usageCard
 
                 cleanupCard
 
@@ -226,38 +233,31 @@ struct InAppDynamicIslandView: View {
         .buttonStyle(.plain)
     }
 
-    private var phasePicker: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Text("形态")
-                .font(.system(size: 13, weight: .semibold))
-                .foregroundStyle(foreground.opacity(0.5))
-
-            HStack(spacing: 10) {
-                ForEach(IslandPhase.allCases) { item in
-                    Button {
-                        withAnimation(.spring(response: 0.42, dampingFraction: 0.72)) {
-                            phase = item
-                        }
-                    } label: {
-                        Text(item.title)
-                            .font(.system(size: 14, weight: .semibold))
-                            .foregroundStyle(phase == item
-                                             ? (useDarkBackground ? Color.black : Color.white)
-                                             : foreground.opacity(0.7))
-                            .frame(maxWidth: .infinity)
-                            .padding(.vertical, 10)
-                            .background(
-                                Capsule().fill(phase == item ? foreground : foreground.opacity(0.08))
-                            )
-                    }
-                    .buttonStyle(.plain)
-                }
+    private var usageCard: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Label {
+                Text(phase == .collapsed ? "点一下上方的灵动岛展开" : "点击岛体以外的任何位置收起")
+                    .font(.system(size: 14, weight: .medium))
+                    .foregroundStyle(foreground)
+                    .contentTransition(.opacity)
+            } icon: {
+                Image(systemName: phase == .collapsed ? "hand.tap" : "arrow.down.right.and.arrow.up.left")
+                    .foregroundStyle(Color(red: 0.98, green: 0.45, blue: 0.32))
             }
 
-            Text("也可以直接点按上方的岛体循环切换")
-                .font(.system(size: 12))
-                .foregroundStyle(foreground.opacity(0.35))
+            if phase == .collapsed {
+                Text("屏幕顶部约 54pt 是系统触摸死区，岛体整个落在里面、点不到，所以热区向下延伸到了死区之外。")
+                    .font(.system(size: 12))
+                    .foregroundStyle(foreground.opacity(0.4))
+                    .fixedSize(horizontal: false, vertical: true)
+            }
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(14)
+        .background(
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .fill(foreground.opacity(0.06))
+        )
     }
 
     private var cleanupCard: some View {
@@ -369,23 +369,9 @@ struct InAppDynamicIslandView: View {
 
 // MARK: - 形态
 
-/// 模拟灵动岛的三种形态。
-private enum IslandPhase: Int, CaseIterable, Identifiable {
-    case collapsed, compact, expanded
-
-    var id: Int { rawValue }
-
-    var title: String {
-        switch self {
-        case .collapsed: return "收起"
-        case .compact: return "紧凑"
-        case .expanded: return "展开"
-        }
-    }
-
-    var next: IslandPhase {
-        IslandPhase(rawValue: (rawValue + 1) % IslandPhase.allCases.count) ?? .collapsed
-    }
+/// 模拟灵动岛的两种形态：收起、展开。
+private enum IslandPhase {
+    case collapsed, expanded
 }
 
 // MARK: - 尺寸
@@ -398,26 +384,25 @@ private struct IslandMetrics {
     var topInset: CGFloat = 13.5
     var ringGap: CGFloat = 3
     var ringWidth: CGFloat = 2
+    /// 点击热区在红框之外再外扩的距离。
+    var hitSlop: CGFloat = 14
+    /// 收起态「点击展开」的热区高度，从屏幕顶端算起，必须越过约 54pt 的状态栏触摸死区。
+    var tapBandHeight: CGFloat = 140
 
-    var compactWidth: CGFloat = 210
     var expandedWidth: CGFloat = 371
     var expandedHeight: CGFloat = 160
     var expandedCornerRadius: CGFloat = 44
 
-    /// 紧凑态左右两侧可用的内容宽度，中间留给真实挖孔。
-    var compactSideWidth: CGFloat { max(0, (compactWidth - collapsedWidth) / 2) }
-
     func size(for phase: IslandPhase) -> CGSize {
         switch phase {
         case .collapsed: return CGSize(width: collapsedWidth, height: collapsedHeight)
-        case .compact: return CGSize(width: compactWidth, height: collapsedHeight)
         case .expanded: return CGSize(width: expandedWidth, height: expandedHeight)
         }
     }
 
     func cornerRadius(for phase: IslandPhase) -> CGFloat {
         switch phase {
-        case .collapsed, .compact: return collapsedHeight / 2
+        case .collapsed: return collapsedHeight / 2
         case .expanded: return expandedCornerRadius
         }
     }

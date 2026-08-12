@@ -23,6 +23,8 @@ ios-lab/                            # ← Xcode 同步组，放进来的文件�
 │   └── HolographicFoil.metal
 ├── WindingSlotElements/            # Demo：卷带槽元素复刻
 │   └── WindingSlotElementsView.swift
+├── DynamicIsland/                  # Demo：App 内灵动岛
+│   └── InAppDynamicIslandView.swift
 └── RustCore/                       # Demo：RustCore 跨端架构
     ├── RustCoreLabView.swift
     ├── RustCoreWebHost.swift
@@ -54,7 +56,7 @@ ipc/  rust/  web/  scripts/         # RustCore Demo 专用，必须放在 ios-la
 | 镭射闪光卡片 | `HolographicCard/`（`HolographicCardView.swift` + `HolographicFoil.metal`） | 全息镭射卡片，Metal shader 渲染极光/银彩/虹箔箔面与闪粉星光，另有珠光全息收藏卡样式；跟随陀螺仪或拖拽流动，甩动可翻转 |
 | 卷带槽元素复刻 | `WindingSlotElements/`（`WindingSlotElementsView.swift`） | 复刻参考图中卷带槽、滑块条、导向线等素材元素的静态外观 |
 | RustCore 跨端架构 | `RustCore/`（`RustCoreLabView.swift` 等，见下节） | 对标 Raycast 2.0 的三层架构最小实践：SwiftUI 壳 → WKWebView(React) → Rust core，契约一处声明、三端生成 |
-| App 内灵动岛 | `InAppDynamicIslandView.swift` | App 内绘制的模拟灵动岛，压在系统挖孔位置并描一圈红框，支持收起/紧凑/展开三态；进入页面时清理本 App 自己的 Live Activity |
+| App 内灵动岛 | `DynamicIsland/`（`InAppDynamicIslandView.swift`） | App 内绘制的模拟灵动岛，压在系统挖孔位置并描一圈红框；点灵动岛展开、点其他位置收起；进入页面时清理本 App 自己的 Live Activity |
 
 ## RustCore 跨端架构实践
 
