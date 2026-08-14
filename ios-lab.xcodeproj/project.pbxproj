@@ -6,11 +6,66 @@
 	objectVersion = 77;
 	objects = {
 
+/* Begin PBXBuildFile section */
+		4CA1D00D2FD00000008B420C /* IslandWidget.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 4CA1D0012FD00000008B420C /* IslandWidget.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		4CA1D00F2FD00000008B420C /* IslandActivityAttributes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4CA1D00E2FD00000008B420C /* IslandActivityAttributes.swift */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		4CA1D0082FD00000008B420C /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 4CFEBCCA2FC957C0008B420C /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 4CA1D0032FD00000008B420C;
+			remoteInfo = IslandWidget;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXCopyFilesBuildPhase section */
+		4CA1D0072FD00000008B420C /* Embed Foundation Extensions */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 13;
+			files = (
+				4CA1D00D2FD00000008B420C /* IslandWidget.appex in Embed Foundation Extensions */,
+			);
+			name = "Embed Foundation Extensions";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
+
 /* Begin PBXFileReference section */
+		4CA1D0012FD00000008B420C /* IslandWidget.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = IslandWidget.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		4CA1D00E2FD00000008B420C /* IslandActivityAttributes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = IslandActivityAttributes.swift; path = IslandWidget/IslandActivityAttributes.swift; sourceTree = "<group>"; };
+		4CA2D0012FD00000008B420C /* IslandProbe.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = IslandProbe.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		4CFEBCD22FC957C0008B420C /* ios-lab.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "ios-lab.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
+/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		4CA1D0102FD00000008B420C /* Exceptions for "IslandWidget" folder in "IslandWidget" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Info.plist,
+			);
+			target = 4CA1D0032FD00000008B420C /* IslandWidget */;
+		};
+/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
+
 /* Begin PBXFileSystemSynchronizedRootGroup section */
+		4CA1D0022FD00000008B420C /* IslandWidget */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				4CA1D0102FD00000008B420C /* Exceptions for "IslandWidget" folder in "IslandWidget" target */,
+			);
+			path = IslandWidget;
+			sourceTree = "<group>";
+		};
+		4CA2D0022FD00000008B420C /* IslandProbe */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = IslandProbe;
+			sourceTree = "<group>";
+		};
 		4CFEBCD42FC957C0008B420C /* ios-lab */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			path = "ios-lab";
@@ -19,6 +74,20 @@
 /* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
+		4CA1D0052FD00000008B420C /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		4CA2D0052FD00000008B420C /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		4CFEBCCF2FC957C0008B420C /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
@@ -33,6 +102,9 @@
 			isa = PBXGroup;
 			children = (
 				4CFEBCD42FC957C0008B420C /* ios-lab */,
+				4CA1D0022FD00000008B420C /* IslandWidget */,
+				4CA1D00E2FD00000008B420C /* IslandActivityAttributes.swift */,
+				4CA2D0022FD00000008B420C /* IslandProbe */,
 				4CFEBCD32FC957C0008B420C /* Products */,
 			);
 			sourceTree = "<group>";
@@ -41,6 +113,8 @@
 			isa = PBXGroup;
 			children = (
 				4CFEBCD22FC957C0008B420C /* ios-lab.app */,
+				4CA1D0012FD00000008B420C /* IslandWidget.appex */,
+				4CA2D0012FD00000008B420C /* IslandProbe.app */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -48,6 +122,50 @@
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
+		4CA1D0032FD00000008B420C /* IslandWidget */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 4CA1D00A2FD00000008B420C /* Build configuration list for PBXNativeTarget "IslandWidget" */;
+			buildPhases = (
+				4CA1D0042FD00000008B420C /* Sources */,
+				4CA1D0052FD00000008B420C /* Frameworks */,
+				4CA1D0062FD00000008B420C /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			fileSystemSynchronizedGroups = (
+				4CA1D0022FD00000008B420C /* IslandWidget */,
+			);
+			name = IslandWidget;
+			packageProductDependencies = (
+			);
+			productName = IslandWidget;
+			productReference = 4CA1D0012FD00000008B420C /* IslandWidget.appex */;
+			productType = "com.apple.product-type.app-extension";
+		};
+		4CA2D0032FD00000008B420C /* IslandProbe */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 4CA2D00A2FD00000008B420C /* Build configuration list for PBXNativeTarget "IslandProbe" */;
+			buildPhases = (
+				4CA2D0042FD00000008B420C /* Sources */,
+				4CA2D0052FD00000008B420C /* Frameworks */,
+				4CA2D0062FD00000008B420C /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			fileSystemSynchronizedGroups = (
+				4CA2D0022FD00000008B420C /* IslandProbe */,
+			);
+			name = IslandProbe;
+			packageProductDependencies = (
+			);
+			productName = IslandProbe;
+			productReference = 4CA2D0012FD00000008B420C /* IslandProbe.app */;
+			productType = "com.apple.product-type.application";
+		};
 		4CFEBCD12FC957C0008B420C /* ios-lab */ = {
 			isa = PBXNativeTarget;
 			buildConfigurationList = 4CFEBCDD2FC957C2008B420C /* Build configuration list for PBXNativeTarget "ios-lab" */;
@@ -56,10 +174,12 @@
 				4CFEBCCE2FC957C0008B420C /* Sources */,
 				4CFEBCCF2FC957C0008B420C /* Frameworks */,
 				4CFEBCD02FC957C0008B420C /* Resources */,
+				4CA1D0072FD00000008B420C /* Embed Foundation Extensions */,
 			);
 			buildRules = (
 			);
 			dependencies = (
+				4CA1D0092FD00000008B420C /* PBXTargetDependency */,
 			);
 			fileSystemSynchronizedGroups = (
 				4CFEBCD42FC957C0008B420C /* ios-lab */,
@@ -81,6 +201,12 @@
 				LastSwiftUpdateCheck = 2650;
 				LastUpgradeCheck = 2650;
 				TargetAttributes = {
+					4CA1D0032FD00000008B420C = {
+						CreatedOnToolsVersion = 26.5;
+					};
+					4CA2D0032FD00000008B420C = {
+						CreatedOnToolsVersion = 26.5;
+					};
 					4CFEBCD12FC957C0008B420C = {
 						CreatedOnToolsVersion = 26.5;
 					};
@@ -101,11 +227,27 @@
 			projectRoot = "";
 			targets = (
 				4CFEBCD12FC957C0008B420C /* ios-lab */,
+				4CA1D0032FD00000008B420C /* IslandWidget */,
+				4CA2D0032FD00000008B420C /* IslandProbe */,
 			);
 		};
 /* End PBXProject section */
 
 /* Begin PBXResourcesBuildPhase section */
+		4CA1D0062FD00000008B420C /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		4CA2D0062FD00000008B420C /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		4CFEBCD02FC957C0008B420C /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -138,16 +280,157 @@
 /* End PBXShellScriptBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
-		4CFEBCCE2FC957C0008B420C /* Sources */ = {
+		4CA1D0042FD00000008B420C /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		4CA2D0042FD00000008B420C /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		4CFEBCCE2FC957C0008B420C /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				4CA1D00F2FD00000008B420C /* IslandActivityAttributes.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXSourcesBuildPhase section */
 
+/* Begin PBXTargetDependency section */
+		4CA1D0092FD00000008B420C /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 4CA1D0032FD00000008B420C /* IslandWidget */;
+			targetProxy = 4CA1D0082FD00000008B420C /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
+
 /* Begin XCBuildConfiguration section */
+		4CA1D00B2FD00000008B420C /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 5BKVVRH643;
+				ENABLE_PREVIEWS = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = IslandWidget/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = IslandWidget;
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				IPHONEOS_DEPLOYMENT_TARGET = 17.6;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "fun.xstudio.ios-lab.IslandWidget";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SKIP_INSTALL = YES;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		4CA1D00C2FD00000008B420C /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 5BKVVRH643;
+				ENABLE_PREVIEWS = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = IslandWidget/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = IslandWidget;
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				IPHONEOS_DEPLOYMENT_TARGET = 17.6;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "fun.xstudio.ios-lab.IslandWidget";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SKIP_INSTALL = YES;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
+		4CA2D00B2FD00000008B420C /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 5BKVVRH643;
+				ENABLE_PREVIEWS = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
+				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
+				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				IPHONEOS_DEPLOYMENT_TARGET = 17.6;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "fun.xstudio.island-probe";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		4CA2D00C2FD00000008B420C /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 5BKVVRH643;
+				ENABLE_PREVIEWS = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
+				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
+				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				IPHONEOS_DEPLOYMENT_TARGET = 17.6;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "fun.xstudio.island-probe";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
 		4CFEBCDB2FC957C2008B420C /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -274,6 +557,7 @@
 				ENABLE_PREVIEWS = YES;
 				ENABLE_USER_SELECTED_FILES = readonly;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_NSSupportsLiveActivities = YES;
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphoneos*]" = YES;
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphonesimulator*]" = YES;
 				"INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents[sdk=iphoneos*]" = YES;
@@ -320,6 +604,7 @@
 				ENABLE_PREVIEWS = YES;
 				ENABLE_USER_SELECTED_FILES = readonly;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_NSSupportsLiveActivities = YES;
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphoneos*]" = YES;
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphonesimulator*]" = YES;
 				"INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents[sdk=iphoneos*]" = YES;
@@ -357,6 +642,24 @@
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
+		4CA1D00A2FD00000008B420C /* Build configuration list for PBXNativeTarget "IslandWidget" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				4CA1D00B2FD00000008B420C /* Debug */,
+				4CA1D00C2FD00000008B420C /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		4CA2D00A2FD00000008B420C /* Build configuration list for PBXNativeTarget "IslandProbe" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				4CA2D00B2FD00000008B420C /* Debug */,
+				4CA2D00C2FD00000008B420C /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
 		4CFEBCCD2FC957C0008B420C /* Build configuration list for PBXProject "ios-lab" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (

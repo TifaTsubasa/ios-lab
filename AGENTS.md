@@ -24,7 +24,9 @@ ios-lab/                            # ← Xcode 同步组，放进来的文件�
 ├── WindingSlotElements/            # Demo：卷带槽元素复刻
 │   └── WindingSlotElementsView.swift
 ├── DynamicIsland/                  # Demo：App 内灵动岛
-│   └── InAppDynamicIslandView.swift
+│   ├── InAppDynamicIslandView.swift
+│   ├── OverlaySuppression.swift    # 让别的 App 的 Live Activity 从岛上消失
+│   └── OtherAudioPreemption.swift  # 抢占音频会话，打断别的 App 的音乐
 └── RustCore/                       # Demo：RustCore 跨端架构
     ├── RustCoreLabView.swift
     ├── RustCoreWebHost.swift
@@ -34,6 +36,15 @@ ios-lab/                            # ← Xcode 同步组，放进来的文件�
     ├── rustcore.h
     └── ios-lab-Bridging-Header.h
 
+IslandProbe/                        # ← 独立 App target：灵动岛对照实验的「观察者」
+└── IslandProbeApp.swift            # 自家 App 前台时看不到自家的岛，所以需要第二个 App
+
+IslandWidget/                       # ← Widget Extension target（灵动岛 Demo 专用）
+├── IslandWidgetBundle.swift        # @main WidgetBundle
+├── IslandActivityWidget.swift      # ActivityConfiguration + 灵动岛各形态 UI
+├── IslandActivityAttributes.swift  # 与 App 共享的 Live Activity 契约
+└── Info.plist                      # NSExtensionPointIdentifier
+
 ipc/  rust/  web/  scripts/         # RustCore Demo 专用，必须放在 ios-lab/ 之外
 ```
 
@@ -41,6 +52,13 @@ ipc/  rust/  web/  scripts/         # RustCore Demo 专用，必须放在 ios-la
 > Xcode 自动收编，新增 Demo 不需要改 `project.pbxproj`。子目录在打包时会被**摊平**，
 > 所以资源（如 `RustCoreUI.html`）在 bundle 根目录即可被 `Bundle.main.url(forResource:)`
 > 取到。反过来，`node_modules`、`target` 这类构建目录绝对不能放进去。
+
+> `IslandWidget/` 同样是同步组，但只挂在 widget target 上。**widget 源码必须放在
+> `ios-lab/` 之外**：放进去会被 App target 一并收编，`@main WidgetBundle` 就会和
+> `ios_labApp` 的 `@main` 冲突。反过来，`IslandActivityAttributes.swift` 需要两边都能用，
+> 所以在 `project.pbxproj` 里额外给了一个显式文件引用，加进 App target 的 Sources。
+> `Info.plist` 则用 `PBXFileSystemSynchronizedBuildFileExceptionSet` 排除在资源拷贝之外，
+> 否则会和 `ProcessInfoPlistFile` 撞成 "Multiple commands produce"。
 
 ## 如何添加新的 Demo
 
@@ -56,7 +74,27 @@ ipc/  rust/  web/  scripts/         # RustCore Demo 专用，必须放在 ios-la
 | 镭射闪光卡片 | `HolographicCard/`（`HolographicCardView.swift` + `HolographicFoil.metal`） | 全息镭射卡片，Metal shader 渲染极光/银彩/虹箔箔面与闪粉星光，另有珠光全息收藏卡样式；跟随陀螺仪或拖拽流动，甩动可翻转 |
 | 卷带槽元素复刻 | `WindingSlotElements/`（`WindingSlotElementsView.swift`） | 复刻参考图中卷带槽、滑块条、导向线等素材元素的静态外观 |
 | RustCore 跨端架构 | `RustCore/`（`RustCoreLabView.swift` 等，见下节） | 对标 Raycast 2.0 的三层架构最小实践：SwiftUI 壳 → WKWebView(React) → Rust core，契约一处声明、三端生成 |
-| App 内灵动岛 | `DynamicIsland/`（`InAppDynamicIslandView.swift`） | App 内绘制的模拟灵动岛，压在系统挖孔位置并描一圈红框；点灵动岛展开、点其他位置收起；进入页面时清理本 App 自己的 Live Activity |
+| App 内灵动岛 | `DynamicIsland/` + `IslandWidget/` + `IslandProbe/` | 模拟灵动岛（黑胶囊压挖孔、点岛展开）；真实 Live Activity 实测台（前台自动隐藏 vs 活动被结束）；**隐藏别家灵动岛**（`persistentSystemOverlays(.hidden)`）；音频会话抢占（针对 Now Playing 岛） |
+
+### 灵动岛：怎么让**别的 App** 的岛消失
+
+实测结论（对照实验见 `IslandProbe` target：ios-lab 持有 Live Activity，IslandProbe 当前台逐项开关）：
+
+| 前台 App 的状态 | 别家的 Live Activity 在岛上 |
+| --- | --- |
+| 什么都不做 | 显示 |
+| `.statusBarHidden(true)` | **消失** |
+| `.persistentSystemOverlays(.hidden)` | **消失**（状态栏时间/信号/电量保留） |
+| 全部关掉（对照组） | 恢复显示 |
+
+推荐 `.persistentSystemOverlays(.hidden)`，代价最小。注意这是**渲染抑制**不是结束活动——
+和「宿主 App 前台时系统自动隐藏自家活动」同一类机制，离开页面自动恢复。
+
+Apple DTS 说的「没有 API 能 disable 别家的 Live Activity」字面上没错：你确实结束不了别人的活动，
+但可以让系统在你前台时不画它。别被那句话劝退。
+
+音乐/播客那种 Now Playing 岛还有第二条路：抢占非混音的 `.playback` 音频会话把它暂停掉
+（`OtherAudioPreemption.swift`），但那会真的停掉用户的音乐，默认关闭。
 
 ## RustCore 跨端架构实践
 
