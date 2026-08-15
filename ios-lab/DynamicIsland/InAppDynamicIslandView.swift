@@ -2,7 +2,7 @@
 //  InAppDynamicIslandView.swift
 //  ios-lab
 //
-//  App 内灵动岛：在挖孔坐标处画一个纯黑胶囊压住系统灵动岛，外圈描一圈红色边框。
+//  App 内灵动岛 Demo：把 `InAppDynamicIsland` 组件摆在挖孔坐标处，外圈描一圈红色边框对齐。
 //  系统灵动岛由系统在所有 App 之上的图层渲染，App 画不上去，只能靠「黑对黑」融为一体。
 //
 //  让**别的 App** 的 Live Activity 从岛上消失，靠的是 `.statusBarHidden(true)`——
@@ -19,13 +19,14 @@ import UIKit
 struct InAppDynamicIslandView: View {
     @Environment(\.dismiss) private var dismiss
 
-    @State private var phase: IslandPhase = .collapsed
+    @State private var isExpanded = false
     @State private var metrics = IslandMetrics()
     /// 默认白底：黑胶囊和真实挖孔在白色上对比最强，一眼能看出有没有对齐。
     @State private var useDarkBackground = false
     @State private var showTuning = false
 
     private var foreground: Color { useDarkBackground ? .white : Color(red: 0.11, green: 0.10, blue: 0.13) }
+    private let accent = Color(red: 0.98, green: 0.45, blue: 0.32)
 
     var body: some View {
         ZStack(alignment: .top) {
@@ -34,11 +35,11 @@ struct InAppDynamicIslandView: View {
             infoScroll
 
             // 展开后铺满全屏的透明层：点岛体以外的任何位置都收起。
-            if phase == .expanded {
+            if isExpanded {
                 Color.clear
                     .contentShape(Rectangle())
                     .ignoresSafeArea()
-                    .onTapGesture { setPhase(.collapsed) }
+                    .onTapGesture { isExpanded = false }
             }
 
             islandLayer
@@ -65,84 +66,50 @@ struct InAppDynamicIslandView: View {
     /// 独立铺满全屏（含安全区）的一层，只承载岛体本身，保证它压在页面最上方。
     private var islandLayer: some View {
         VStack(spacing: 0) {
-            island
-                .padding(.top, metrics.topInset)
+            InAppDynamicIsland(isExpanded: $isExpanded, metrics: metrics, ringColor: .red) {
+                artwork
+            } trailing: {
+                Image(systemName: "pause.fill")
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundStyle(.white)
+            } expanded: {
+                nowPlaying
+            }
+            .padding(.top, metrics.topInset)
+
             Spacer(minLength: 0)
         }
         .ignoresSafeArea()
     }
 
-    private var island: some View {
-        let size = metrics.size(for: phase)
-        let radius = metrics.cornerRadius(for: phase)
-        let shape = RoundedRectangle(cornerRadius: radius, style: .continuous)
-        let ringInset = metrics.ringGap + metrics.ringWidth
-        let hitInset = ringInset + metrics.hitSlop
-
-        return expandedContent
-            .opacity(phase == .expanded ? 1 : 0)
-            .frame(width: size.width, height: size.height)
-        // 黑胶囊和红框都用真正的 Shape 视图 + 负 padding 外扩：半径走同一套 animatableData，
-        // 尺寸直接来自胶囊动画后的实际布局，展开/收起过程中两者才不会错开。
-        .background {
-            RoundedRectangle(cornerRadius: radius, style: .continuous)
-                .fill(Color.black)
-        }
-        .clipShape(shape)
-        .overlay {
-            RoundedRectangle(cornerRadius: radius + ringInset, style: .continuous)
-                .strokeBorder(Color.red, lineWidth: metrics.ringWidth)
-                .padding(-ringInset)
-        }
-        // 点击热区比胶囊大一圈，手指落在边缘附近也能命中。
-        .overlay {
-            RoundedRectangle(cornerRadius: radius + hitInset, style: .continuous)
-                .fill(.clear)
-                .contentShape(RoundedRectangle(cornerRadius: radius + hitInset, style: .continuous))
-                .padding(-hitInset)
-                .onTapGesture { setPhase(phase == .collapsed ? .expanded : .collapsed) }
-        }
-    }
-
-    /// 展开态：顶部整条留空，同时避开挖孔和系统状态栏（时间、信号、电量都画在 App 之上）。
-    private var expandedContent: some View {
-        VStack(spacing: 0) {
-            Color.clear
-                .frame(height: metrics.collapsedHeight)
-
-            HStack(spacing: 14) {
-                RoundedRectangle(cornerRadius: 12, style: .continuous)
-                    .fill(
-                        LinearGradient(colors: [Color(red: 0.98, green: 0.45, blue: 0.32),
-                                                Color(red: 0.62, green: 0.24, blue: 0.72)],
-                                       startPoint: .topLeading,
-                                       endPoint: .bottomTrailing)
-                    )
-                    .frame(width: 54, height: 54)
-                    .overlay {
-                        Image(systemName: "music.note")
-                            .font(.system(size: 22, weight: .semibold))
-                            .foregroundStyle(.white)
-                    }
-
-                VStack(alignment: .leading, spacing: 3) {
-                    Text("App 内灵动岛")
-                        .font(.system(size: 15, weight: .semibold))
-                        .foregroundStyle(.white)
-
-                    Text("ios-lab · 正在播放")
-                        .font(.system(size: 12))
-                        .foregroundStyle(.white.opacity(0.5))
-                }
-
-                Spacer(minLength: 0)
-
-                Image(systemName: "pause.fill")
-                    .font(.system(size: 20, weight: .semibold))
+    /// 收起态贴在挖孔左侧的封面，展开后滑到岛体左上角。
+    private var artwork: some View {
+        RoundedRectangle(cornerRadius: 8, style: .continuous)
+            .fill(
+                LinearGradient(colors: [accent, Color(red: 0.62, green: 0.24, blue: 0.72)],
+                               startPoint: .topLeading,
+                               endPoint: .bottomTrailing)
+            )
+            .frame(width: 26, height: 26)
+            .overlay {
+                Image(systemName: "music.note")
+                    .font(.system(size: 12, weight: .semibold))
                     .foregroundStyle(.white)
             }
+    }
 
-            Spacer(minLength: 8)
+    /// 展开态的主内容区：曲目信息 + 进度条。高度由它决定，岛体自适应。
+    private var nowPlaying: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            VStack(alignment: .leading, spacing: 3) {
+                Text("App 内灵动岛")
+                    .font(.system(size: 15, weight: .semibold))
+                    .foregroundStyle(.white)
+
+                Text("ios-lab · 正在播放")
+                    .font(.system(size: 12))
+                    .foregroundStyle(.white.opacity(0.5))
+            }
 
             HStack(spacing: 8) {
                 Text("1:12")
@@ -165,16 +132,10 @@ struct InAppDynamicIslandView: View {
                     .foregroundStyle(.white.opacity(0.45))
             }
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.horizontal, 22)
-        .padding(.bottom, 16)
-        .frame(width: metrics.expandedWidth)
-    }
-
-    private func setPhase(_ next: IslandPhase) {
-        guard next != phase else { return }
-        withAnimation(.spring(response: 0.42, dampingFraction: 0.72)) {
-            phase = next
-        }
+        .padding(.top, 10)
+        .padding(.bottom, 18)
     }
 
     // MARK: - 页面说明与控制
@@ -196,7 +157,7 @@ struct InAppDynamicIslandView: View {
                 Toggle("深色背景", isOn: $useDarkBackground)
                     .font(.system(size: 14, weight: .medium))
                     .foregroundStyle(foreground)
-                    .tint(Color(red: 0.98, green: 0.45, blue: 0.32))
+                    .tint(accent)
                     .padding(.horizontal, 4)
 
                 tuningSection
@@ -221,13 +182,13 @@ struct InAppDynamicIslandView: View {
 
     private var usageCard: some View {
         Label {
-            Text(phase == .collapsed ? "点一下上方的灵动岛展开" : "点击岛体以外的任何位置收起")
+            Text(isExpanded ? "点击岛体以外的任何位置收起" : "点一下上方的灵动岛展开")
                 .font(.system(size: 14, weight: .medium))
                 .foregroundStyle(foreground)
                 .contentTransition(.opacity)
         } icon: {
-            Image(systemName: phase == .collapsed ? "hand.tap" : "arrow.down.right.and.arrow.up.left")
-                .foregroundStyle(Color(red: 0.98, green: 0.45, blue: 0.32))
+            Image(systemName: isExpanded ? "arrow.down.right.and.arrow.up.left" : "hand.tap")
+                .foregroundStyle(accent)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(14)
@@ -248,6 +209,11 @@ struct InAppDynamicIslandView: View {
                 .foregroundStyle(foreground.opacity(0.45))
                 .fixedSize(horizontal: false, vertical: true)
 
+            Text("岛体是通用组件 InAppDynamicIsland：封面、暂停键、下方的曲目信息都是外部传进来的自定义视图，收起态胶囊随左右内容变宽，展开态高度随主内容自适应。")
+                .font(.system(size: 12))
+                .foregroundStyle(foreground.opacity(0.45))
+                .fixedSize(horizontal: false, vertical: true)
+
             Text("本页面开了 statusBarHidden(true)，所以其他 App 的 Live Activity 此刻不会渲染在岛上——活动没被结束，退出页面就恢复。")
                 .font(.system(size: 12))
                 .foregroundStyle(foreground.opacity(0.45))
@@ -264,10 +230,11 @@ struct InAppDynamicIslandView: View {
     private var tuningSection: some View {
         DisclosureGroup(isExpanded: $showTuning) {
             VStack(spacing: 14) {
-                tuningSlider(title: "宽度", value: $metrics.collapsedWidth, range: 100...160)
-                tuningSlider(title: "高度", value: $metrics.collapsedHeight, range: 28...50)
+                tuningSlider(title: "挖孔宽度", value: $metrics.notchWidth, range: 100...160)
+                tuningSlider(title: "挖孔高度", value: $metrics.notchHeight, range: 28...50)
                 tuningSlider(title: "顶部距离", value: $metrics.topInset, range: 0...30)
                 tuningSlider(title: "红框间距", value: $metrics.ringGap, range: 0...12)
+                tuningSlider(title: "收起留白", value: $metrics.compactSideInset, range: 0...24)
 
                 Button("恢复默认") {
                     withAnimation(.snappy) { metrics = IslandMetrics() }
@@ -302,7 +269,7 @@ struct InAppDynamicIslandView: View {
             }
 
             Slider(value: value, in: range)
-                .tint(Color(red: 0.98, green: 0.45, blue: 0.32))
+                .tint(accent)
         }
     }
 
@@ -322,45 +289,6 @@ struct InAppDynamicIslandView: View {
             RoundedRectangle(cornerRadius: 14, style: .continuous)
                 .fill(Color.orange.opacity(0.12))
         )
-    }
-}
-
-// MARK: - 形态
-
-/// 模拟灵动岛的两种形态：收起、展开。
-private enum IslandPhase {
-    case collapsed, expanded
-}
-
-// MARK: - 尺寸
-
-/// 灵动岛几何没有公开 API 可取，这里用 iPhone 14 Pro 之后机型的实测值，并允许运行时微调。
-private struct IslandMetrics {
-    var collapsedWidth: CGFloat = 126
-    var collapsedHeight: CGFloat = 37.33
-    /// 在 iPhone 17 Pro 模拟器上量出来的实际值，比常见的 11 略低；不同机型可用下方微调对齐。
-    var topInset: CGFloat = 13.5
-    var ringGap: CGFloat = 3
-    var ringWidth: CGFloat = 2
-    /// 点击热区在红框之外再外扩的距离。
-    var hitSlop: CGFloat = 14
-
-    var expandedWidth: CGFloat = 371
-    var expandedHeight: CGFloat = 160
-    var expandedCornerRadius: CGFloat = 44
-
-    func size(for phase: IslandPhase) -> CGSize {
-        switch phase {
-        case .collapsed: return CGSize(width: collapsedWidth, height: collapsedHeight)
-        case .expanded: return CGSize(width: expandedWidth, height: expandedHeight)
-        }
-    }
-
-    func cornerRadius(for phase: IslandPhase) -> CGFloat {
-        switch phase {
-        case .collapsed: return collapsedHeight / 2
-        case .expanded: return expandedCornerRadius
-        }
     }
 }
 

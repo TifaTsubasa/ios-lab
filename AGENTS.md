@@ -24,7 +24,9 @@ ios-lab/                            # ← Xcode 同步组，放进来的文件�
 ├── WindingSlotElements/            # Demo：卷带槽元素复刻
 │   └── WindingSlotElementsView.swift
 ├── DynamicIsland/                  # Demo：App 内灵动岛
-│   └── InAppDynamicIslandView.swift
+│   ├── InAppDynamicIslandView.swift # Demo 页
+│   ├── InAppDynamicIsland.swift     # 可复用的岛体组件 + IslandMetrics
+│   └── Usage.md                     # 组件使用指南（会被打进 bundle 根，见下）
 └── RustCore/                       # Demo：RustCore 跨端架构
     ├── RustCoreLabView.swift
     ├── RustCoreWebHost.swift
@@ -56,7 +58,37 @@ ipc/  rust/  web/  scripts/         # RustCore Demo 专用，必须放在 ios-la
 | 镭射闪光卡片 | `HolographicCard/`（`HolographicCardView.swift` + `HolographicFoil.metal`） | 全息镭射卡片，Metal shader 渲染极光/银彩/虹箔箔面与闪粉星光，另有珠光全息收藏卡样式；跟随陀螺仪或拖拽流动，甩动可翻转 |
 | 卷带槽元素复刻 | `WindingSlotElements/`（`WindingSlotElementsView.swift`） | 复刻参考图中卷带槽、滑块条、导向线等素材元素的静态外观 |
 | RustCore 跨端架构 | `RustCore/`（`RustCoreLabView.swift` 等，见下节） | 对标 Raycast 2.0 的三层架构最小实践：SwiftUI 壳 → WKWebView(React) → Rust core，契约一处声明、三端生成 |
-| App 内灵动岛 | `DynamicIsland/`（`InAppDynamicIslandView.swift`） | App 内绘制的模拟灵动岛，压在系统挖孔位置并描一圈红框；点灵动岛展开、点其他位置收起；页面开 `statusBarHidden(true)`，其他 App 的灵动岛会消失（见下节） |
+| App 内灵动岛 | `DynamicIsland/`（`InAppDynamicIsland.swift` + `InAppDynamicIslandView.swift`） | App 内绘制的模拟灵动岛组件，压在系统挖孔位置并描一圈红框；点灵动岛展开、点其他位置收起；页面开 `statusBarHidden(true)`，其他 App 的灵动岛会消失（见下节） |
+
+### 灵动岛组件 `InAppDynamicIsland`
+
+完整用法见 [ios-lab/DynamicIsland/Usage.md](ios-lab/DynamicIsland/Usage.md)。
+注意子目录打包时会被摊平，这个 md 会以 `Usage.md` 落在 bundle 根目录——
+别的 Demo 再放同名文件会撞车，要么换个名字，要么把文档挪到 `ios-lab/` 之外。
+
+岛体本身是通用组件，只负责形态、尺寸、动画和命中，摆在屏幕什么位置由宿主决定：
+
+```swift
+InAppDynamicIsland(isExpanded: $isExpanded, metrics: metrics, ringColor: .red) {
+    artwork          // leading：收起态贴挖孔左侧，展开态滑到岛体左上角
+} trailing: {
+    pauseButton      // trailing：同上，右侧
+} expanded: {
+    nowPlaying       // 只在展开态出现的主内容区，岛体高度随它自适应
+}
+```
+
+三个区都有默认值 `EmptyView()`，可以只传需要的。尺寸走 `IslandMetrics`（挖孔宽高、两侧留白、
+展开宽度与高度下限、描边、命中外扩），全部可运行时微调。
+
+两处不能想当然的地方：
+
+- **收起态左右必须等宽**。胶囊由宿主居中摆放，而真实挖孔恒定在屏幕正中，两侧不等宽的话
+  中间留空区会整体偏移，挖孔就会压住较宽那侧的内容（实测偏了 5.8pt）。真实灵动岛的
+  compact 形态同样绕挖孔对称。
+- **宽高必须是具体数值**，不能在 `nil`（内在尺寸）和定值之间切换——那样不会补间只会跳变。
+  所以三个自定义区各有一份隐藏副本当探针量自然尺寸，副本必须带 `.fixedSize()`，
+  否则会被 `.background` 约束成宿主的尺寸。
 
 ### 灵动岛：怎么让**别的 App** 的岛消失
 
