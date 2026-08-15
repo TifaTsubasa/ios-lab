@@ -6,6 +6,10 @@
 	objectVersion = 77;
 	objects = {
 
+/* Begin PBXBuildFile section */
+		4CD5D7AC3030084600353C31 /* LookInsideServer in Frameworks */ = {isa = PBXBuildFile; productRef = 4CD5D7AD3030084600353C32 /* LookInsideServer */; };
+/* End PBXBuildFile section */
+
 /* Begin PBXFileReference section */
 		4CFEBCD22FC957C0008B420C /* ios-lab.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "ios-lab.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
@@ -23,6 +27,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				4CD5D7AC3030084600353C31 /* LookInsideServer in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -66,6 +71,7 @@
 			);
 			name = "ios-lab";
 			packageProductDependencies = (
+				4CD5D7AD3030084600353C32 /* LookInsideServer */,
 			);
 			productName = "ios-lab";
 			productReference = 4CFEBCD22FC957C0008B420C /* ios-lab.app */;
@@ -95,6 +101,9 @@
 			);
 			mainGroup = 4CFEBCC92FC957C0008B420C;
 			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				4CD5D7AB3030084600353C30 /* XCRemoteSwiftPackageReference "LookInside-Release" */,
+			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 4CFEBCD32FC957C0008B420C /* Products */;
 			projectDirPath = "";
@@ -319,6 +328,7 @@
 				ENABLE_APP_SANDBOX = YES;
 				ENABLE_PREVIEWS = YES;
 				ENABLE_USER_SELECTED_FILES = readonly;
+				EXCLUDED_SOURCE_FILE_NAMES = "LookInsideServer*";
 				GENERATE_INFOPLIST_FILE = YES;
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphoneos*]" = YES;
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphonesimulator*]" = YES;
@@ -376,6 +386,25 @@
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		4CD5D7AB3030084600353C30 /* XCRemoteSwiftPackageReference "LookInside-Release" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/LookInsideApp/LookInside-Release.git";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 0.2.7;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		4CD5D7AD3030084600353C32 /* LookInsideServer */ = {
+			isa = XCSwiftPackageProductDependency;
+			packageName = LookInside-Release;
+			productName = LookInsideServer;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = 4CFEBCCA2FC957C0008B420C /* Project object */;
 }

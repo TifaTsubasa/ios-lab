@@ -1,0 +1,15 @@
+{
+  "originHash" : "be0d217f9b98df592be8c371f05782652d073b8819fe3afbda10c54044ede515",
+  "pins" : [
+    {
+      "identity" : "lookinside-release",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/LookInsideApp/LookInside-Release.git",
+      "state" : {
+        "revision" : "dffa978344968ce7f175b70342b8470ba9043cb2",
+        "version" : "0.2.7"
+      }
+    }
+  ],
+  "version" : 3
+}
