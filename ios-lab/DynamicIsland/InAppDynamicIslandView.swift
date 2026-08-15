@@ -64,22 +64,10 @@ struct InAppDynamicIslandView: View {
 
     /// 独立铺满全屏（含安全区）的一层，只承载岛体本身，保证它压在页面最上方。
     private var islandLayer: some View {
-        ZStack(alignment: .top) {
-            // 实测：屏幕顶部约 54pt（状态栏整条）收不到触摸，系统图层在 App 之上把点击吃掉了。
-            // 岛体 13.5~50.8pt 整个落在这条死区里，怎么点都没反应，所以用一条从屏幕顶端
-            // 向下延伸进活动区的带子接管「点击展开」。
-            if phase == .collapsed {
-                Color.clear
-                    .frame(height: metrics.tapBandHeight)
-                    .contentShape(Rectangle())
-                    .onTapGesture { setPhase(.expanded) }
-            }
-
-            VStack(spacing: 0) {
-                island
-                    .padding(.top, metrics.topInset)
-                Spacer(minLength: 0)
-            }
+        VStack(spacing: 0) {
+            island
+                .padding(.top, metrics.topInset)
+            Spacer(minLength: 0)
         }
         .ignoresSafeArea()
     }
@@ -89,28 +77,29 @@ struct InAppDynamicIslandView: View {
         let radius = metrics.cornerRadius(for: phase)
         let shape = RoundedRectangle(cornerRadius: radius, style: .continuous)
         let ringInset = metrics.ringGap + metrics.ringWidth
-
         let hitInset = ringInset + metrics.hitSlop
 
         return expandedContent
             .opacity(phase == .expanded ? 1 : 0)
             .frame(width: size.width, height: size.height)
-        .background(Color.black, in: shape)
+        // 黑胶囊和红框都用真正的 Shape 视图 + 负 padding 外扩：半径走同一套 animatableData，
+        // 尺寸直接来自胶囊动画后的实际布局，展开/收起过程中两者才不会错开。
+        .background {
+            RoundedRectangle(cornerRadius: radius, style: .continuous)
+                .fill(Color.black)
+        }
         .clipShape(shape)
         .overlay {
             RoundedRectangle(cornerRadius: radius + ringInset, style: .continuous)
                 .strokeBorder(Color.red, lineWidth: metrics.ringWidth)
-                .frame(width: size.width + ringInset * 2,
-                       height: size.height + ringInset * 2)
+                .padding(-ringInset)
         }
-        // 挖孔本身那一小块屏幕收不到触摸（系统状态栏图层在 App 之上），
-        // 所以点击热区要比胶囊大一圈，让手指落在挖孔边缘也能命中。
+        // 点击热区比胶囊大一圈，手指落在边缘附近也能命中。
         .overlay {
             RoundedRectangle(cornerRadius: radius + hitInset, style: .continuous)
                 .fill(.clear)
                 .contentShape(RoundedRectangle(cornerRadius: radius + hitInset, style: .continuous))
-                .frame(width: size.width + hitInset * 2,
-                       height: size.height + hitInset * 2)
+                .padding(-hitInset)
                 .onTapGesture { setPhase(phase == .collapsed ? .expanded : .collapsed) }
         }
     }
@@ -231,23 +220,14 @@ struct InAppDynamicIslandView: View {
     }
 
     private var usageCard: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Label {
-                Text(phase == .collapsed ? "点一下上方的灵动岛展开" : "点击岛体以外的任何位置收起")
-                    .font(.system(size: 14, weight: .medium))
-                    .foregroundStyle(foreground)
-                    .contentTransition(.opacity)
-            } icon: {
-                Image(systemName: phase == .collapsed ? "hand.tap" : "arrow.down.right.and.arrow.up.left")
-                    .foregroundStyle(Color(red: 0.98, green: 0.45, blue: 0.32))
-            }
-
-            if phase == .collapsed {
-                Text("屏幕顶部约 54pt 是系统触摸死区，岛体整个落在里面、点不到，所以热区向下延伸到了死区之外。")
-                    .font(.system(size: 12))
-                    .foregroundStyle(foreground.opacity(0.4))
-                    .fixedSize(horizontal: false, vertical: true)
-            }
+        Label {
+            Text(phase == .collapsed ? "点一下上方的灵动岛展开" : "点击岛体以外的任何位置收起")
+                .font(.system(size: 14, weight: .medium))
+                .foregroundStyle(foreground)
+                .contentTransition(.opacity)
+        } icon: {
+            Image(systemName: phase == .collapsed ? "hand.tap" : "arrow.down.right.and.arrow.up.left")
+                .foregroundStyle(Color(red: 0.98, green: 0.45, blue: 0.32))
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(14)
@@ -364,8 +344,6 @@ private struct IslandMetrics {
     var ringWidth: CGFloat = 2
     /// 点击热区在红框之外再外扩的距离。
     var hitSlop: CGFloat = 14
-    /// 收起态「点击展开」的热区高度，从屏幕顶端算起，必须越过约 54pt 的状态栏触摸死区。
-    var tapBandHeight: CGFloat = 140
 
     var expandedWidth: CGFloat = 371
     var expandedHeight: CGFloat = 160
