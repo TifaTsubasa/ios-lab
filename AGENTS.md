@@ -27,11 +27,15 @@ ios-lab/                            # ← Xcode 同步组，放进来的文件�
 │   ├── InAppDynamicIslandView.swift # Demo 页
 │   ├── InAppDynamicIsland.swift     # 可复用的岛体组件 + IslandMetrics
 │   └── Usage.md                     # 组件使用指南（会被打进 bundle 根，见下）
-├── Shatter/                        # Demo：视图碎裂（两种风格可切换）
-│   ├── ShatterView.swift            # Demo 页
-│   ├── Shatter.swift                # 可复用的 .shatter() 修饰器 + 液滴系统
-│   ├── SoapFilm.metal               # 风格一：肥皂泡膜
-│   └── InkSplat.metal               # 风格二：斯普拉遁式墨水喷射
+├── Shatter/                        # Demo：视图碎裂（两种风格 × 两条渲染路线）
+│   ├── ShatterCore.h                # 两条路线共用的着色核心（形态 + 配色）
+│   ├── Shatter.swift                # SwiftUI 路线：.shatter() 修饰器 + 时间线 + 液滴模型
+│   ├── SoapFilm.metal               # SwiftUI 入口：肥皂泡膜
+│   ├── InkSplat.metal               # SwiftUI 入口：斯普拉遁式墨水喷射
+│   ├── ShatterView.swift            # SwiftUI Demo 页
+│   ├── UIKitShatter.swift           # UIKit 路线：快照 + CAMetalLayer + UIView.shatter()
+│   ├── UIKitShatterKernels.metal    # UIKit 入口：全屏三角形 + 实例化液滴
+│   └── UIKitShatterView.swift       # UIKit Demo 页
 └── RustCore/                       # Demo：RustCore 跨端架构
     ├── RustCoreLabView.swift
     ├── RustCoreWebHost.swift
@@ -64,7 +68,8 @@ ipc/  rust/  web/  scripts/         # RustCore Demo 专用，必须放在 ios-la
 | 卷带槽元素复刻 | `WindingSlotElements/`（`WindingSlotElementsView.swift`） | 复刻参考图中卷带槽、滑块条、导向线等素材元素的静态外观 |
 | RustCore 跨端架构 | `RustCore/`（`RustCoreLabView.swift` 等，见下节） | 对标 Raycast 2.0 的三层架构最小实践：SwiftUI 壳 → WKWebView(React) → Rust core，契约一处声明、三端生成 |
 | App 内灵动岛 | `DynamicIsland/`（`InAppDynamicIsland.swift` + `InAppDynamicIslandView.swift`） | App 内绘制的模拟灵动岛组件，压在系统挖孔位置并描一圈红框；点灵动岛展开、点其他位置收起；页面开 `statusBarHidden(true)`，其他 App 的灵动岛会消失（见下节） |
-| 视图碎裂 | `Shatter/`（`Shatter.swift` + `SoapFilm.metal` + `InkSplat.metal` + `ShatterView.swift`） | 点哪儿从哪儿碎，两种风格可切换：皂膜（薄膜干涉 + 孔洞扩张）和墨水（斯普拉遁式喷射）。Metal 出形态，Canvas 画喷溅；见下节 |
+| 视图碎裂（SwiftUI） | `Shatter/`（`Shatter.swift` + `ShatterView.swift`） | 点哪儿从哪儿碎，两种风格可切换：皂膜（薄膜干涉 + 孔洞扩张）和墨水（斯普拉遁式喷射）；见下节 |
+| 视图碎裂（UIKit） | `Shatter/`（`UIKitShatter.swift` + `UIKitShatterView.swift`） | 同样两种风格，但作用在**真的 UIKit 控件**上。SwiftUI 那条路对 UIKit 是失效的，必须另起一套；见下节 |
 
 ### 灵动岛组件 `InAppDynamicIsland`
 
@@ -123,13 +128,13 @@ card
 `ShatterConfig.style` 切换风格，通用参数（时长、液滴数、重力）在顶层，
 风格专属参数分别在 `.film` 和 `.ink` 里。
 
-| 风格 | shader | 形态 |
-| ---- | ------ | ---- |
-| `.soapFilm` | `SoapFilm.metal` | 视图是一层皂膜，穿孔后孔洞沿膜面扩张，卷边退缩，喷出近白的水光 |
-| `.inkSplat` | `InkSplat.metal` | 一道有机的墨线扫过视图，糊上不透明的墨，整块消失，喷出圆疙瘩状墨点 |
+| 风格 | 形态 |
+| ---- | ---- |
+| `.soapFilm` | 视图是一层皂膜，穿孔后孔洞沿膜面扩张，卷边退缩，喷出近白的水光 |
+| `.inkSplat` | 一道有机的墨线扫过视图，糊上不透明的墨，整块消失，喷出圆疙瘩状墨点 |
 
 两种风格共用同一套时间线、破裂点和液滴系统，只有逐像素的形态和液滴的画法不同。
-液滴始终由 `Canvas` 覆盖层画 —— 它们要飞出视图边界，shader 画不了。
+液滴永远画在一层覆盖层上 —— 它们要飞出视图边界，主 shader 画不了。
 
 **皂膜**几个不能想当然的点：
 
@@ -160,7 +165,41 @@ card
 - **前沿的行程按起点到最远那个角来算**，shader 和液滴 Canvas 必须用同一个公式（`frontReach`），
   否则液滴的出生时刻和前沿的位置对不上。半径随时间线性增长（皂膜那边对应 Taylor–Culick）。
 - **液滴尺寸要走幂律**，均匀分布会让喷溅看起来像撒了一把药丸。
-- **别放进会裁剪的容器**（ScrollView / List / `.clipped()`），液滴会被切掉。
+- **别放进会裁剪的容器**（ScrollView / List / `.clipped()`），液滴会被切掉。UIKit 版同理，
+  特效层是插进 `superview` 的，宿主链上任何 `clipsToBounds` 都会切掉喷溅。
+
+### UIKit 版：`UIView.shatter()`
+
+```swift
+let point = gesture.location(in: card)
+card.shatter(config: config, at: point) {
+    card.isHidden = false     // 回调时自己仍是 isHidden = true，要复原自行置回
+}
+```
+
+**SwiftUI 那套对 UIKit 是直接失效的，不是效果差一点。** `layerEffect` 要把宿主
+光栅化成纹理，而 UIKit 托管的图层由系统单独合成，SwiftUI 栅格不到：给
+`UIViewRepresentable` 套上 `.shatter()` 之后，UIKit 内容会被替换成黄底 🚫
+「无法渲染」占位符 —— **而且 `isEnabled: false` 也一样**，挂上去就废，
+没法「平时挂着、需要时才启用」。
+
+所以 UIKit 走自己的一条渲染路线：`drawHierarchy` 截图 → 传成 MTLTexture →
+在目标上方盖一层 `CAMetalLayer`，`CADisplayLink` 驱动。液滴不再逐帧 CPU 画，
+而是实例化四边形，参数一次性传上 GPU，之后每帧只更新一个时间标量。
+
+两条路线**共用 `ShatterCore.h`**：逐像素的形态与配色只有一份，各自的入口只负责
+「参数怎么传」和「内容从哪儿采样」。时间线、破裂点、液滴分布也复用 `Shatter.swift`
+里的同一批函数，所以两边观感一致。
+
+UIKit 这条路踩到的两个坑：
+
+- **`UIGraphicsImageRendererFormat.preferred()` 在广色域设备上给的是 16 位扩展范围位图**，
+  那种 CGImage 喂不进纹理，整条链路**静默失败**，表现就是「点了没反应」。
+  要么锁 `format.preferredRange = .standard`，要么像现在这样自己画进
+  rgba8/预乘/deviceRGB 的位图再上传，别让 `MTKTextureLoader` 去猜格式。
+- **别给 CGBitmapContext 加翻转**。它的用户坐标系原点虽然在左下，但内存里第 0 行本来
+  就对应图像顶部，直接 `draw` 出来就是 Metal 要的左上原点。多翻一次的结果是整张快照
+  上下颠倒 —— 内容一眼能看出来，但很容易先怀疑到 uv 上去。
 
 ## RustCore 跨端架构实践
 

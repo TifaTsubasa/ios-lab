@@ -23,8 +23,11 @@ struct ContentView: View {
                 NavigationLink("App 内灵动岛") {
                     InAppDynamicIslandView()
                 }
-                NavigationLink("视图碎裂") {
+                NavigationLink("视图碎裂（SwiftUI）") {
                     ShatterView()
+                }
+                NavigationLink("视图碎裂（UIKit）") {
+                    UIKitShatterView()
                 }
             }
             .navigationTitle("ios-lab")

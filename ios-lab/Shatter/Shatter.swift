@@ -17,7 +17,6 @@
 //
 
 import SwiftUI
-import UIKit   // shadedInk 要走 UIColor 取 HSB；本项目开了 MemberImportVisibility，传递导入不算数
 
 // MARK: - 风格
 
@@ -108,7 +107,7 @@ struct ShatterConfig {
 // MARK: - 时间线
 
 /// 把「距离点击过去了多久」翻译成 shader 需要的一组参数。elapsed < 0 表示还没点。
-private struct ShatterStage {
+struct ShatterStage {
     var frontT = 0.0            // 前沿进度 0...1
     var contentAlpha = 1.0
     var filmMix = 0.0
@@ -138,7 +137,7 @@ private struct ShatterStage {
     }
 }
 
-private extension Double {
+extension Double {
     var clampedUnit: Double { Swift.min(1, Swift.max(0, self)) }
 }
 
@@ -147,7 +146,7 @@ private extension Double {
 /// 破裂点。跟手时就是手指点到的位置（内容局部坐标），否则按 seed 随机取一点。
 /// shader 和液滴 Canvas 各自的坐标系不同，但 `center - halfSize` 都是内容的左上角，
 /// 所以同一个函数能服务两边。
-private func nucleusPoint(center: CGPoint, halfSize: CGSize,
+func nucleusPoint(center: CGPoint, halfSize: CGSize,
                           tap: CGPoint?, seed: UInt64) -> CGPoint {
     if let tap {
         return CGPoint(x: center.x - halfSize.width + tap.x,
@@ -158,13 +157,13 @@ private func nucleusPoint(center: CGPoint, halfSize: CGSize,
                    y: center.y + CGFloat(Float.random(in: -0.6...0.6, using: &rng)) * halfSize.height)
 }
 
-private func domeDepth(_ inner: CGSize, _ c: ShatterConfig) -> CGFloat {
+func domeDepth(_ inner: CGSize, _ c: ShatterConfig) -> CGFloat {
     min(min(inner.width, inner.height) * c.film.domeDepth, 30)
 }
 
 /// 前沿扫完整个视图的行程。必须和 shader 里算得一模一样，
 /// 否则液滴的出生时刻会和前沿的位置对不上。
-private func frontReach(nucleus: CGPoint, center: CGPoint, halfSize: CGSize,
+func frontReach(nucleus: CGPoint, center: CGPoint, halfSize: CGSize,
                         config c: ShatterConfig) -> CGFloat {
     let vn = CGPoint(x: nucleus.x - center.x, y: nucleus.y - center.y)
     let far = CGPoint(x: vn.x > 0 ? -halfSize.width : halfSize.width,
@@ -184,7 +183,7 @@ private func frontReach(nucleus: CGPoint, center: CGPoint, halfSize: CGSize,
 
 /// 崩解喷出的一颗液滴。出生点按 halfSize 归一化到 [-1,1]²，出生时刻在绘制时
 /// 由「它到破裂点的距离 ÷ 行程」现算 —— 生成时还不知道视图多大。
-private struct ShatterDroplet {
+struct ShatterDroplet {
     var origin: SIMD2<Float>
     var angleJitter: Float      // 相对“背离破裂点”的偏角（弧度）
     var speedFactor: Float      // × 前沿推进速度 = 初速
@@ -196,7 +195,7 @@ private struct ShatterDroplet {
 }
 
 /// 可复现的 SplitMix64，保证同一个 seed 每帧生成同一批液滴
-private struct SplitMix64: RandomNumberGenerator {
+struct SplitMix64: RandomNumberGenerator {
     var state: UInt64
     mutating func next() -> UInt64 {
         state &+= 0x9E37_79B9_7F4A_7C15
@@ -207,7 +206,7 @@ private struct SplitMix64: RandomNumberGenerator {
     }
 }
 
-private func makeDroplets(count: Int, style: ShatterStyle, seed: UInt64) -> [ShatterDroplet] {
+func makeDroplets(count: Int, style: ShatterStyle, seed: UInt64) -> [ShatterDroplet] {
     var rng = SplitMix64(state: seed | 1)
     let inky = style == .inkSplat
     return (0..<count).map { i in
@@ -475,15 +474,6 @@ private struct ShatterModifier: ViewModifier {
     }
 }
 
-private extension Color {
-    /// 压暗到原来的 f，用来给小墨点做层次
-    func shadedInk(_ f: Double) -> Color {
-        let c = UIColor(self)
-        var h: CGFloat = 0, s: CGFloat = 0, b: CGFloat = 0, a: CGFloat = 0
-        guard c.getHue(&h, saturation: &s, brightness: &b, alpha: &a) else { return self }
-        return Color(hue: h, saturation: min(1, s * 1.06), brightness: b * f, opacity: a)
-    }
-}
 
 extension View {
     /// 让视图碎掉。`isShattered` 置 true 触发，置回 false 立刻复原。
