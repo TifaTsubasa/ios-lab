@@ -23,6 +23,9 @@ struct ContentView: View {
                 NavigationLink("App 内灵动岛") {
                     InAppDynamicIslandView()
                 }
+                NavigationLink("泡泡破裂") {
+                    BubblePopView()
+                }
             }
             .navigationTitle("ios-lab")
         }

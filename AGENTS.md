@@ -27,6 +27,10 @@ ios-lab/                            # ← Xcode 同步组，放进来的文件�
 │   ├── InAppDynamicIslandView.swift # Demo 页
 │   ├── InAppDynamicIsland.swift     # 可复用的岛体组件 + IslandMetrics
 │   └── Usage.md                     # 组件使用指南（会被打进 bundle 根，见下）
+├── BubblePop/                      # Demo：泡泡破裂
+│   ├── BubblePopView.swift          # Demo 页
+│   ├── BubblePop.swift              # 可复用的 .bubblePop() 修饰器 + 液滴系统
+│   └── BubbleFilm.metal             # 皂膜着色器
 └── RustCore/                       # Demo：RustCore 跨端架构
     ├── RustCoreLabView.swift
     ├── RustCoreWebHost.swift
@@ -59,6 +63,7 @@ ipc/  rust/  web/  scripts/         # RustCore Demo 专用，必须放在 ios-la
 | 卷带槽元素复刻 | `WindingSlotElements/`（`WindingSlotElementsView.swift`） | 复刻参考图中卷带槽、滑块条、导向线等素材元素的静态外观 |
 | RustCore 跨端架构 | `RustCore/`（`RustCoreLabView.swift` 等，见下节） | 对标 Raycast 2.0 的三层架构最小实践：SwiftUI 壳 → WKWebView(React) → Rust core，契约一处声明、三端生成 |
 | App 内灵动岛 | `DynamicIsland/`（`InAppDynamicIsland.swift` + `InAppDynamicIslandView.swift`） | App 内绘制的模拟灵动岛组件，压在系统挖孔位置并描一圈红框；点灵动岛展开、点其他位置收起；页面开 `statusBarHidden(true)`，其他 App 的灵动岛会消失（见下节） |
+| 泡泡破裂 | `BubblePop/`（`BubblePop.swift` + `BubbleFilm.metal` + `BubblePopView.swift`） | 视图本身就是一层皂膜，点哪儿从哪儿破。Metal 算薄膜干涉与孔洞扩张，Canvas 画喷溅液滴；见下节 |
 
 ### 灵动岛组件 `InAppDynamicIsland`
 
@@ -103,6 +108,45 @@ InAppDynamicIsland(isExpanded: $isExpanded, metrics: metrics, ringColor: .red) {
 
 Apple DTS 说的「没有 API 能 disable 别家的 Live Activity」字面上没错：你确实结束不了别人的活动，
 但可以让系统在你前台时不画它。别被那句话劝退。
+
+### 泡泡组件 `.bubblePop()`
+
+```swift
+card
+    .clipShape(RoundedRectangle(cornerRadius: 26))   // 圆角要和 config.cornerRadius 对上
+    .bubblePopOnTap(isPopped: $popped)               // 从手指点到的那一点破开
+    // 或 .bubblePop(isPopped:config:onFinished:)    // 程序触发，破裂点按 seed 随机
+```
+
+视图**不会先鼓成球**：它保持自己的形状，膜显形 → 穿孔 → 卷边退缩 → 喷溅，一气呵成。
+时间线三段全部走 `BubblePopConfig`（时长、膜厚区间、膜强度、液滴数、重力…）。
+`idleFilm` 控制没点击时的膜强度，0 就是原封不动的普通视图。
+
+效果分两层：
+
+| 层 | 干什么 |
+| -- | ------ |
+| `BubbleFilm.metal`（`layerEffect`） | 膜的形状、着色、破裂洞、卷边亮环 |
+| `Canvas` 覆盖层 | 喷溅液滴 —— 它们要飞出视图边界，shader 画不了 |
+
+几个不能想当然的点：
+
+- **膜不是平板**。由圆角矩形 SDF 生成一圈球冠高度场（`h = sqrt(1-s²)`，`s` 由到边缘的
+  归一化距离得来），只在靠边 `domeDepth` 的一圈里弯，中间保持全平、内容不失真。
+  掠射角在那一圈迅速抬高，菲涅尔和高光才有地方落。
+- **孔洞的行程按破裂点到最远那个角来算**，shader 和液滴 Canvas 必须用同一个公式，
+  否则液滴的出生时刻和卷边的位置对不上。半径随时间线性增长（Taylor–Culick）。
+- **膜厚驱动一切颜色**。反射强度 ∝ sin²(π·2nd·cosθ/λ)，三个波长采样即可。
+  卷边处厚度乘 4.5 倍，那道亮环是白送的。
+- **膜厚在空间上的跨度必须压在一个干涉周期以内**（Δd = λ/2n ≈ 166 nm）。这一条是踩了坑
+  才知道的：跨度大了等厚线会密集成干涉条纹，而膜中间是平的、厚度又是 y 的线性斜坡，
+  等厚线于是恰好是**笔直的轴对齐直线**，看起来就像画错了一个矩形。它是真实的干涉条纹，
+  不是数值 bug，查了半天 SDF、噪声、`maxSampleOffset` 全是白查。
+  排查手法记一下：把中间量（`turb` / 掠射角 / 厚度）直接当颜色输出，再逐像素扫二阶差分，
+  比盯着截图猜快得多。
+- **液滴尺寸要走幂律**，均匀分布会让喷溅看起来像撒了一把彩色药丸。另外要按「上一帧→当前帧」
+  拉成胶囊做运动模糊，否则是一堆圆粒；颜色几乎要拉到纯白，饱和度稍高就变彩纸屑。
+- **别放进会裁剪的容器**（ScrollView / List / `.clipped()`），液滴会被切掉。
 
 ## RustCore 跨端架构实践
 
