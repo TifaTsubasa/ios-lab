@@ -28,14 +28,19 @@ ios-lab/                            # ← Xcode 同步组，放进来的文件�
 │   ├── InAppDynamicIsland.swift     # 可复用的岛体组件 + IslandMetrics
 │   └── Usage.md                     # 组件使用指南（会被打进 bundle 根，见下）
 ├── Shatter/                        # Demo：视图碎裂（两种风格 × 两条渲染路线）
-│   ├── ShatterCore.h                # 两条路线共用的着色核心（形态 + 配色）
-│   ├── Shatter.swift                # SwiftUI 路线：.shatter() 修饰器 + 时间线 + 液滴模型
-│   ├── SoapFilm.metal               # SwiftUI 入口：肥皂泡膜
-│   ├── InkSplat.metal               # SwiftUI 入口：斯普拉遁式墨水喷射
-│   ├── ShatterView.swift            # SwiftUI Demo 页
-│   ├── UIKitShatter.swift           # UIKit 路线：快照 + CAMetalLayer + UIView.shatter()
-│   ├── UIKitShatterKernels.metal    # UIKit 入口：全屏三角形 + 实例化液滴
-│   └── UIKitShatterView.swift       # UIKit Demo 页
+│   ├── Shared/                      # 两条路线共用，改这里两边一起变
+│   │   ├── ShatterCore.h            #   着色核心：形态 + 配色（.metal 用相对路径 include）
+│   │   ├── ShatterConfig.swift      #   风格枚举 + 参数 + ShatterConfig
+│   │   └── ShatterModel.swift       #   时间线、破裂点与行程、液滴分布、Color 小工具
+│   ├── SwiftUI/
+│   │   ├── ShatterModifier.swift    #   .shatter() 修饰器 + Canvas 液滴
+│   │   ├── SoapFilm.metal           #   stitchable 入口：肥皂泡膜
+│   │   ├── InkSplat.metal           #   stitchable 入口：斯普拉遁式墨水喷射
+│   │   └── ShatterView.swift        #   Demo 页
+│   └── UIKit/
+│       ├── UIKitShatter.swift       #   快照 + CAMetalLayer + UIView.shatter()
+│       ├── UIKitShatterKernels.metal #  全屏三角形 + 实例化液滴
+│       └── UIKitShatterView.swift   #   Demo 页
 └── RustCore/                       # Demo：RustCore 跨端架构
     ├── RustCoreLabView.swift
     ├── RustCoreWebHost.swift
@@ -68,8 +73,8 @@ ipc/  rust/  web/  scripts/         # RustCore Demo 专用，必须放在 ios-la
 | 卷带槽元素复刻 | `WindingSlotElements/`（`WindingSlotElementsView.swift`） | 复刻参考图中卷带槽、滑块条、导向线等素材元素的静态外观 |
 | RustCore 跨端架构 | `RustCore/`（`RustCoreLabView.swift` 等，见下节） | 对标 Raycast 2.0 的三层架构最小实践：SwiftUI 壳 → WKWebView(React) → Rust core，契约一处声明、三端生成 |
 | App 内灵动岛 | `DynamicIsland/`（`InAppDynamicIsland.swift` + `InAppDynamicIslandView.swift`） | App 内绘制的模拟灵动岛组件，压在系统挖孔位置并描一圈红框；点灵动岛展开、点其他位置收起；页面开 `statusBarHidden(true)`，其他 App 的灵动岛会消失（见下节） |
-| 视图碎裂（SwiftUI） | `Shatter/`（`Shatter.swift` + `ShatterView.swift`） | 点哪儿从哪儿碎，两种风格可切换：皂膜（薄膜干涉 + 孔洞扩张）和墨水（斯普拉遁式喷射）；见下节 |
-| 视图碎裂（UIKit） | `Shatter/`（`UIKitShatter.swift` + `UIKitShatterView.swift`） | 同样两种风格，但作用在**真的 UIKit 控件**上。SwiftUI 那条路对 UIKit 是失效的，必须另起一套；见下节 |
+| 视图碎裂（SwiftUI） | `Shatter/SwiftUI/` | 点哪儿从哪儿碎，两种风格可切换：皂膜（薄膜干涉 + 孔洞扩张）和墨水（斯普拉遁式喷射）；见下节 |
+| 视图碎裂（UIKit） | `Shatter/UIKit/` | 同样两种风格，但作用在**真的 UIKit 控件**上。SwiftUI 那条路对 UIKit 是失效的，必须另起一套；见下节 |
 
 ### 灵动岛组件 `InAppDynamicIsland`
 
@@ -187,9 +192,12 @@ card.shatter(config: config, at: point) {
 在目标上方盖一层 `CAMetalLayer`，`CADisplayLink` 驱动。液滴不再逐帧 CPU 画，
 而是实例化四边形，参数一次性传上 GPU，之后每帧只更新一个时间标量。
 
-两条路线**共用 `ShatterCore.h`**：逐像素的形态与配色只有一份，各自的入口只负责
-「参数怎么传」和「内容从哪儿采样」。时间线、破裂点、液滴分布也复用 `Shatter.swift`
-里的同一批函数，所以两边观感一致。
+两条路线**共用 `Shared/`**：`ShatterCore.h` 里逐像素的形态与配色只有一份，各自的入口
+只负责「参数怎么传」和「内容从哪儿采样」；`ShatterConfig.swift` / `ShatterModel.swift`
+里的参数、时间线、破裂点、液滴分布也是同一份，所以两边观感一致。
+
+`.metal` 跨目录用相对路径包含共用头（`#include "../Shared/ShatterCore.h"`），
+不需要给 target 配 header search path。
 
 UIKit 这条路踩到的两个坑：
 

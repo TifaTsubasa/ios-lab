@@ -4,9 +4,9 @@
 //
 //  两条渲染路线共用的着色核心。
 //
-//  - SwiftUI 路线：`SoapFilm.metal` / `InkSplat.metal` 里的 `[[stitchable]]` 函数，
+//  - SwiftUI 路线：`SwiftUI/SoapFilm.metal` / `InkSplat.metal` 里的 `[[stitchable]]` 函数，
 //    内容通过 `SwiftUI::Layer` 采样。
-//  - UIKit 路线：`UIKitShatterKernels.metal` 里的普通 `[[fragment]]` 函数，
+//  - UIKit 路线：`UIKit/UIKitShatterKernels.metal` 里的普通 `[[fragment]]` 函数，
 //    内容通过 `texture2d<half>` 采样（因为 SwiftUI 栅格不到 UIKit 图层，见 AGENTS.md）。
 //
 //  两边的采样方式不同，但每像素的形态与配色必须完全一致，所以这里把逻辑拆成

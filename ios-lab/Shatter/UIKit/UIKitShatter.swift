@@ -12,12 +12,12 @@
 //  所以这条路线自己动手：
 //  1. 用 `drawHierarchy` 把目标视图截成一张位图，传成 MTLTexture；
 //  2. 在目标视图上方盖一层 CAMetalLayer，把原视图藏起来；
-//  3. 每帧跑同一套 ShatterCore.h 的着色核心，内容改从纹理采样。
+//  3. 每帧跑同一套 Shared/ShatterCore.h 的着色核心，内容改从纹理采样。
 //
 //  液滴也换了实现：SwiftUI 那边用 Canvas 逐帧在 CPU 上画，这边做成实例化四边形，
 //  参数一次性传上 GPU，之后每帧只更新一个时间标量。
 //
-//  形态参数、时间线、液滴分布全部复用 Shatter.swift 里的同一批函数，
+//  形态参数、时间线、液滴分布全部复用 Shared/ 里的同一批实现，
 //  所以两条路线的观感是一致的。
 //
 
@@ -376,7 +376,7 @@ final class ShatterEffectView: UIView {
         return tex
     }
 
-    /// 把 Shatter.swift 里那套归一化液滴，按这次的尺寸解析成 GPU 实例。
+    /// 把 Shared/ShatterModel.swift 里那套归一化液滴，按这次的尺寸解析成 GPU 实例。
     /// 各项系数刻意和 SwiftUI 那边 Canvas 的画法保持一致。
     private static func buildDroplets(config: ShatterConfig, seed: UInt64,
                                       center: CGPoint, half: CGSize,
@@ -470,24 +470,5 @@ extension UIView {
             completion?()
         }
         return true
-    }
-}
-
-// MARK: - 小工具
-
-extension Color {
-    /// 压暗到原来的 f，用来给小墨点做层次
-    func shadedInk(_ f: Double) -> Color {
-        let c = UIColor(self)
-        var h: CGFloat = 0, s: CGFloat = 0, b: CGFloat = 0, a: CGFloat = 0
-        guard c.getHue(&h, saturation: &s, brightness: &b, alpha: &a) else { return self }
-        return Color(hue: h, saturation: min(1, s * 1.06), brightness: b * f, opacity: a)
-    }
-
-    /// 拆成 shader 要的 RGBA。alpha 单独给，方便把「这颗液滴多不透明」塞进 color.a。
-    func rgbaComponents(alpha: Float) -> SIMD4<Float> {
-        var r: CGFloat = 0, g: CGFloat = 0, b: CGFloat = 0, a: CGFloat = 0
-        UIColor(self).getRed(&r, green: &g, blue: &b, alpha: &a)
-        return SIMD4(Float(r), Float(g), Float(b), alpha)
     }
 }

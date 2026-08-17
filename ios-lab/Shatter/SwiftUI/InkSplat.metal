@@ -2,14 +2,14 @@
 //  InkSplat.metal
 //  ios-lab
 //
-//  斯普拉遁式墨水喷射的 SwiftUI 入口。逐像素的形态与配色全在 ShatterCore.h 里，
+//  斯普拉遁式墨水喷射的 SwiftUI 入口。逐像素的形态与配色全在 Shared/ShatterCore.h 里，
 //  这里只负责把 SwiftUI 传进来的散装参数装进 uniforms，并用 `SwiftUI::Layer` 采样内容。
-//  UIKit 那条路线（UIKitShatterKernels.metal）调用的是同一套核心。
+//  UIKit 那条路线（UIKit/UIKitShatterKernels.metal）调用的是同一套核心。
 //
 
 #include <metal_stdlib>
 #include <SwiftUI/SwiftUI.h>
-#include "ShatterCore.h"
+#include "../Shared/ShatterCore.h"
 using namespace metal;
 
 /// center    视图中心（视图坐标 pt）

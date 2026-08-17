@@ -4,7 +4,7 @@
 //
 //  UIKit 路线的渲染管线。和 SwiftUI 路线唯一的区别是**内容从哪儿来**：
 //  那边由 `SwiftUI::Layer` 提供，这边是宿主视图的一张快照纹理。
-//  每像素的形态与配色仍然走 ShatterCore.h，两条路线不会各自漂移。
+//  每像素的形态与配色仍然走 Shared/ShatterCore.h，两条路线不会各自漂移。
 //
 //  液滴这边也不一样：SwiftUI 那边用 Canvas 逐帧在 CPU 上画，这边直接做成
 //  实例化的四边形 —— 每颗液滴的参数一次性传上去，之后每帧只变一个时间标量，
@@ -12,7 +12,7 @@
 //
 
 #include <metal_stdlib>
-#include "ShatterCore.h"
+#include "../Shared/ShatterCore.h"
 using namespace metal;
 
 constexpr sampler kSrcSampler(filter::linear, address::clamp_to_zero);
@@ -60,7 +60,8 @@ fragment half4 shatterInkFragment(QuadOut in [[stage_in]],
 
 // MARK: - 液滴
 
-/// 布局要和 Swift 端严格对上：显式补到 64 字节，不依赖编译器的补位规则
+/// 布局要和 UIKitShatter.swift 里的 `DropletGPU` 严格对上：
+/// 显式补到 64 字节，不依赖编译器的补位规则
 struct DropletGPU {
     float4 color;     // 未预乘
     float2 origin;    // 出生点（视图坐标 pt）
