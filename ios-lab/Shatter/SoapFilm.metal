@@ -1,5 +1,5 @@
 //
-//  BubbleFilm.metal
+//  SoapFilm.metal
 //  ios-lab
 //
 //  肥皂泡膜着色器：把宿主视图本身当成一层绷在圆角矩形上的皂膜，并负责“破裂”本身。
@@ -88,7 +88,7 @@ static inline float3 thinFilmColor(float thickness, float cosT) {
 /// anim       x = popT(0...1 破裂进度), y = 内容残留 alpha,
 ///            z = 膜的整体强度,        w = 膜厚 nm
 /// nucleus    破裂起始点（视图坐标 pt），跟手时就是手指点到的位置
-[[ stitchable ]] half4 bubbleFilm(float2 pos,
+[[ stitchable ]] half4 soapFilm(float2 pos,
                                   SwiftUI::Layer layer,
                                   float2 center,
                                   float2 halfSize,

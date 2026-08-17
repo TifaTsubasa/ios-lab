@@ -27,10 +27,11 @@ ios-lab/                            # ← Xcode 同步组，放进来的文件�
 │   ├── InAppDynamicIslandView.swift # Demo 页
 │   ├── InAppDynamicIsland.swift     # 可复用的岛体组件 + IslandMetrics
 │   └── Usage.md                     # 组件使用指南（会被打进 bundle 根，见下）
-├── BubblePop/                      # Demo：泡泡破裂
-│   ├── BubblePopView.swift          # Demo 页
-│   ├── BubblePop.swift              # 可复用的 .bubblePop() 修饰器 + 液滴系统
-│   └── BubbleFilm.metal             # 皂膜着色器
+├── Shatter/                        # Demo：视图碎裂（两种风格可切换）
+│   ├── ShatterView.swift            # Demo 页
+│   ├── Shatter.swift                # 可复用的 .shatter() 修饰器 + 液滴系统
+│   ├── SoapFilm.metal               # 风格一：肥皂泡膜
+│   └── InkSplat.metal               # 风格二：斯普拉遁式墨水喷射
 └── RustCore/                       # Demo：RustCore 跨端架构
     ├── RustCoreLabView.swift
     ├── RustCoreWebHost.swift
@@ -63,7 +64,7 @@ ipc/  rust/  web/  scripts/         # RustCore Demo 专用，必须放在 ios-la
 | 卷带槽元素复刻 | `WindingSlotElements/`（`WindingSlotElementsView.swift`） | 复刻参考图中卷带槽、滑块条、导向线等素材元素的静态外观 |
 | RustCore 跨端架构 | `RustCore/`（`RustCoreLabView.swift` 等，见下节） | 对标 Raycast 2.0 的三层架构最小实践：SwiftUI 壳 → WKWebView(React) → Rust core，契约一处声明、三端生成 |
 | App 内灵动岛 | `DynamicIsland/`（`InAppDynamicIsland.swift` + `InAppDynamicIslandView.swift`） | App 内绘制的模拟灵动岛组件，压在系统挖孔位置并描一圈红框；点灵动岛展开、点其他位置收起；页面开 `statusBarHidden(true)`，其他 App 的灵动岛会消失（见下节） |
-| 泡泡破裂 | `BubblePop/`（`BubblePop.swift` + `BubbleFilm.metal` + `BubblePopView.swift`） | 视图本身就是一层皂膜，点哪儿从哪儿破。Metal 算薄膜干涉与孔洞扩张，Canvas 画喷溅液滴；见下节 |
+| 视图碎裂 | `Shatter/`（`Shatter.swift` + `SoapFilm.metal` + `InkSplat.metal` + `ShatterView.swift`） | 点哪儿从哪儿碎，两种风格可切换：皂膜（薄膜干涉 + 孔洞扩张）和墨水（斯普拉遁式喷射）。Metal 出形态，Canvas 画喷溅；见下节 |
 
 ### 灵动岛组件 `InAppDynamicIsland`
 
@@ -109,33 +110,32 @@ InAppDynamicIsland(isExpanded: $isExpanded, metrics: metrics, ringColor: .red) {
 Apple DTS 说的「没有 API 能 disable 别家的 Live Activity」字面上没错：你确实结束不了别人的活动，
 但可以让系统在你前台时不画它。别被那句话劝退。
 
-### 泡泡组件 `.bubblePop()`
+### 碎裂组件 `.shatter()`
 
 ```swift
 card
     .clipShape(RoundedRectangle(cornerRadius: 26))   // 圆角要和 config.cornerRadius 对上
-    .bubblePopOnTap(isPopped: $popped)               // 从手指点到的那一点破开
-    // 或 .bubblePop(isPopped:config:onFinished:)    // 程序触发，破裂点按 seed 随机
+    .shatterOnTap(isShattered: $gone, config: config)  // 从手指点到的那一点开始崩解
+    // 或 .shatter(isShattered:config:onFinished:)     // 程序触发，起点按 seed 随机
 ```
 
-视图**不会先鼓成球**：它保持自己的形状，膜显形 → 穿孔 → 卷边退缩 → 喷溅，一气呵成。
-时间线三段全部走 `BubblePopConfig`（时长、膜厚区间、膜强度、液滴数、重力…）。
-`idleFilm` 控制没点击时的膜强度，0 就是原封不动的普通视图。
+视图**不会先变形**：它保持自己的形状，起手 → 前沿扫过 → 喷溅，一气呵成。
+`ShatterConfig.style` 切换风格，通用参数（时长、液滴数、重力）在顶层，
+风格专属参数分别在 `.film` 和 `.ink` 里。
 
-效果分两层：
+| 风格 | shader | 形态 |
+| ---- | ------ | ---- |
+| `.soapFilm` | `SoapFilm.metal` | 视图是一层皂膜，穿孔后孔洞沿膜面扩张，卷边退缩，喷出近白的水光 |
+| `.inkSplat` | `InkSplat.metal` | 一道有机的墨线扫过视图，糊上不透明的墨，整块消失，喷出圆疙瘩状墨点 |
 
-| 层 | 干什么 |
-| -- | ------ |
-| `BubbleFilm.metal`（`layerEffect`） | 膜的形状、着色、破裂洞、卷边亮环 |
-| `Canvas` 覆盖层 | 喷溅液滴 —— 它们要飞出视图边界，shader 画不了 |
+两种风格共用同一套时间线、破裂点和液滴系统，只有逐像素的形态和液滴的画法不同。
+液滴始终由 `Canvas` 覆盖层画 —— 它们要飞出视图边界，shader 画不了。
 
-几个不能想当然的点：
+**皂膜**几个不能想当然的点：
 
 - **膜不是平板**。由圆角矩形 SDF 生成一圈球冠高度场（`h = sqrt(1-s²)`，`s` 由到边缘的
   归一化距离得来），只在靠边 `domeDepth` 的一圈里弯，中间保持全平、内容不失真。
   掠射角在那一圈迅速抬高，菲涅尔和高光才有地方落。
-- **孔洞的行程按破裂点到最远那个角来算**，shader 和液滴 Canvas 必须用同一个公式，
-  否则液滴的出生时刻和卷边的位置对不上。半径随时间线性增长（Taylor–Culick）。
 - **膜厚驱动一切颜色**。反射强度 ∝ sin²(π·2nd·cosθ/λ)，三个波长采样即可。
   卷边处厚度乘 4.5 倍，那道亮环是白送的。
 - **膜厚在空间上的跨度必须压在一个干涉周期以内**（Δd = λ/2n ≈ 166 nm）。这一条是踩了坑
@@ -144,8 +144,22 @@ card
   不是数值 bug，查了半天 SDF、噪声、`maxSampleOffset` 全是白查。
   排查手法记一下：把中间量（`turb` / 掠射角 / 厚度）直接当颜色输出，再逐像素扫二阶差分，
   比盯着截图猜快得多。
-- **液滴尺寸要走幂律**，均匀分布会让喷溅看起来像撒了一把彩色药丸。另外要按「上一帧→当前帧」
-  拉成胶囊做运动模糊，否则是一堆圆粒；颜色几乎要拉到纯白，饱和度稍高就变彩纸屑。
+
+**墨水**（斯普拉遁）抓形全在「边界不能是圆」：
+
+- **角向瓣**。轮廓上叠 3/5/7 次低频正弦，出来才是几团圆疙瘩粘在一起，不是光滑的圆。
+- **提前甩出去的散墨**。抖动网格上藏一颗颗墨点，前沿逼近到 `speckleLead` 以内就「啪」地出现。
+  少了这一步，边界再有机也只像是「擦除」，不像「喷射」。
+- **边缘必须硬**。皂膜靠柔和渐变出效果，墨正相反：卡通墨迹是实心色块 + 干脆轮廓，
+  过渡给 1px 就够，一软立刻变成烟雾。液滴同理 —— 不透明、不叠加混合、快到寿命尽头才收缩。
+- **墨点的拖尾要短**。皂膜靠长拖尾做运动模糊，墨点拖长了就成一根根胶囊，
+  必须是圆疙瘩带一点点尾巴，再挂一两颗卫星小点。
+
+两边都适用：
+
+- **前沿的行程按起点到最远那个角来算**，shader 和液滴 Canvas 必须用同一个公式（`frontReach`），
+  否则液滴的出生时刻和前沿的位置对不上。半径随时间线性增长（皂膜那边对应 Taylor–Culick）。
+- **液滴尺寸要走幂律**，均匀分布会让喷溅看起来像撒了一把药丸。
 - **别放进会裁剪的容器**（ScrollView / List / `.clipped()`），液滴会被切掉。
 
 ## RustCore 跨端架构实践
