@@ -119,6 +119,15 @@ final class ShatterMetalContext {
     func pipeline(for style: ShatterStyle) -> MTLRenderPipelineState? {
         effectPipelines[style.effect.fragmentFunctionName]
     }
+
+    /// 提前在后台把 device 和所有管线建好。
+    ///
+    /// `shared` 是懒加载的，不预热的话这笔开销会整个摊在**第一次点击**上：
+    /// 模拟器实测冷缓存下建 4 条管线要 ~565ms，用户就是眼睁睁等半秒。
+    /// 在页面出现时调一次即可，重复调无害（`static let` 只会初始化一次）。
+    static func prewarm() {
+        DispatchQueue.global(qos: .userInitiated).async { _ = ShatterMetalContext.shared }
+    }
 }
 
 // MARK: - 特效层
@@ -149,11 +158,12 @@ final class ShatterEffectView: UIView {
         guard size.width > 1, size.height > 1 else { return nil }
 
         let margin = config.sprayMargin
-        let canvas = CGSize(width: size.width + margin * 2, height: size.height + margin * 2)
 
-        // 截图直接铺满整张画布（内容摆在 margin 偏移处），这样着色器里
-        // uv = pt / viewSize 就能直接用，内容之外自然是透明的
-        guard let snapshot = Self.snapshot(target, canvas: canvas, offset: CGPoint(x: margin, y: margin)),
+        // 只截内容自身，不铺满整张画布。画布被 sprayMargin 四边各撑大 130pt，
+        // 200×120 的卡片会变成 460×380 —— 7 倍面积全是透明像素，而
+        // drawHierarchy + CGContext blit + 纹理上传都是按面积走的。
+        // 着色器改用 shatterContentUV() 从内容矩形映射 uv，见 ShatterQuad.h。
+        guard let snapshot = Self.snapshot(target),
               let texture = Self.makeTexture(device: ctx.device, image: snapshot)
         else { return nil }
 
@@ -185,6 +195,13 @@ final class ShatterEffectView: UIView {
         metalLayer.isOpaque = false
         metalLayer.framebufferOnly = true
         metalLayer.presentsWithTransaction = false
+
+        // 这里就把 scale / drawableSize 定下来，别等 layoutSubviews ——
+        // start() 会立刻同步画一帧，那时布局还没跑，contentsScale 还是默认的 1，
+        // 会先画一帧糊的再跳到 3x。
+        let scale = target.window?.screen.scale ?? target.traitCollection.displayScale
+        metalLayer.contentsScale = scale
+        metalLayer.drawableSize = CGSize(width: bounds.width * scale, height: bounds.height * scale)
     }
 
     @available(*, unavailable)
@@ -200,6 +217,10 @@ final class ShatterEffectView: UIView {
     func start(onFinished: @escaping () -> Void) {
         self.onFinished = onFinished
         startTime = CACurrentMediaTime()
+        // 立刻画一帧，不等 CADisplayLink 的第一次回调（实测要等 15–25ms）。
+        // 顺带消掉一帧空窗：调用方此时已经把原视图 isHidden 了，这一层要是还没画，
+        // 中间就会闪一下什么都没有。
+        render(elapsed: 0)
         let link = CADisplayLink(target: self, selector: #selector(step))
         link.add(to: .main, forMode: .common)
         self.link = link
@@ -242,16 +263,18 @@ final class ShatterEffectView: UIView {
         let effect = config.style.effect
         var viewSize = SIMD2<Float>(Float(bounds.width), Float(bounds.height))
 
+        // viewSize 只有顶点着色器要（把 pt 换算成裁剪空间）；fragment 现在从
+        // uniforms 的 center/halfSize 推 uv，不需要它
         enc.setVertexBytes(&viewSize, length: MemoryLayout<SIMD2<Float>>.size, index: 0)
         enc.setFragmentTexture(texture, index: 0)
-        enc.setFragmentBytes(&viewSize, length: MemoryLayout<SIMD2<Float>>.size, index: 1)
 
         enc.setRenderPipelineState(pipeline)
         effect.encodeUniforms(into: enc, geometry: geometry, stage: stage, config: config)
         enc.drawPrimitives(type: .triangle, vertexStart: 0, vertexCount: 3)
 
-        // 液滴：前沿开始推进之后才有
-        let t = elapsed - config.revealDuration
+        // 液滴：和 frontT 同一条时间轴（前沿从 0 开始推），不再减 revealDuration。
+        // buildDroplets 里的 birth 也是相对前沿起点的，两边必须一致。
+        let t = elapsed
         if t > 0, let buffer = dropletBuffer, dropletCount > 0 {
             var du = DropUniformsGPU(viewSize: viewSize,
                                      t: Float(t),
@@ -271,17 +294,16 @@ final class ShatterEffectView: UIView {
 
     // MARK: 准备数据
 
-    private static func snapshot(_ view: UIView, canvas: CGSize, offset: CGPoint) -> UIImage? {
+    private static func snapshot(_ view: UIView) -> UIImage? {
         let format = UIGraphicsImageRendererFormat.preferred()
         format.opaque = false
         // 必须锁成标准动态范围。默认的 preferred() 在广色域设备上会给出 16 位
         // 扩展范围的位图，那种 CGImage 喂不进纹理（实测整条链路静默失败，
         // 表现就是「点了没反应」）。
         format.preferredRange = .standard
-        let renderer = UIGraphicsImageRenderer(size: canvas, format: format)
+        let renderer = UIGraphicsImageRenderer(size: view.bounds.size, format: format)
         return renderer.image { _ in
-            view.drawHierarchy(in: CGRect(origin: offset, size: view.bounds.size),
-                               afterScreenUpdates: false)
+            view.drawHierarchy(in: view.bounds, afterScreenUpdates: false)
         }
     }
 

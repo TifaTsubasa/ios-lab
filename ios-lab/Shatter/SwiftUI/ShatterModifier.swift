@@ -41,12 +41,17 @@ private struct ShatterModifier: ViewModifier {
             let now = ctx.date.timeIntervalSinceReferenceDate.truncatingRemainder(dividingBy: 60)
 
             content
-                // 手势挂在 padding 之前，.local 才是内容自己的坐标系
-                .onTapGesture(coordinateSpace: .local) { location in
-                    guard tapToShatter, !isShattered else { return }
-                    tap = location
-                    isShattered = true
-                }
+                // 手势挂在 padding 之前，.local 才是内容自己的坐标系。
+                //
+                // 用零距离 DragGesture 而不是 onTapGesture：后者要等**抬手**才 fire，
+                // 手指按住那 50–100ms 用户会算进「卡顿」里。onChanged 在 touch-down
+                // 就触发，startLocation 就是按下那一点。
+                .gesture(DragGesture(minimumDistance: 0, coordinateSpace: .local)
+                    .onChanged { v in
+                        guard tapToShatter, !isShattered else { return }
+                        tap = v.startLocation
+                        isShattered = true
+                    })
                 .padding(config.effectPadding)
                 // 闭包是 nonisolated 的，不能在里面碰 View 的成员，所以要显式捕获
                 .visualEffect { [config, tap, seed] view, proxy in
@@ -71,7 +76,8 @@ private struct ShatterModifier: ViewModifier {
 
     private func spray(stage: ShatterStage) -> some View {
         Canvas { ctx, size in
-            let t = stage.elapsed - config.revealDuration
+            // 和 frontT 同一条时间轴（前沿从 0 开始推），不再减 revealDuration
+            let t = stage.elapsed
             guard stage.isActive, t > 0, !droplets.isEmpty else { return }
 
             // 注意这里的坐标系和上面 shader 的不是同一个（余量不一样），
@@ -155,6 +161,9 @@ extension View {
     }
 
     /// 点一下就碎，并且从手指点到的那一点开始崩解。
+    ///
+    /// 是**按下**就碎，不是抬手才碎 —— tap 手势要等 touch-up，按住那 50–100ms
+    /// 会被当成卡顿。代价是在卡片上起手滑动也会触发，这个效果里可以接受。
     func shatterOnTap(isShattered: Binding<Bool>,
                       config: ShatterConfig = .default,
                       onFinished: (() -> Void)? = nil) -> some View {

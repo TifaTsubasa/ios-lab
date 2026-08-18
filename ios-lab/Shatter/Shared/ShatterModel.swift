@@ -35,7 +35,12 @@ nonisolated struct ShatterStage {
 
         filmMix = c.film.idleFilm + (c.film.strength - c.film.idleFilm) * reveal
         contentAlpha = 1 - (1 - c.film.contentFade) * reveal
-        frontT = ((elapsed - c.revealDuration) / max(c.shatterDuration, 0.001)).clampedUnit
+
+        // 前沿从第一帧就开始推进，reveal 只是叠在上面的一层渐变，两者**并行**。
+        // 曾经是串行的（减掉 revealDuration 再除），结果头 100ms 里 frontT 恒等于 0：
+        // 墨水那边画面纹丝不动，皂膜那边只是膜亮了一点、视图并没有开始破。
+        // 实测这段空窗占了「点击到有反应」总延迟的 75–95%，读起来就是卡了一下。
+        frontT = (elapsed / max(c.shatterDuration, 0.001)).clampedUnit
 
         // 排液：整个破裂过程里膜持续变薄，颜色带会随之扫过一遍
         let drain = (elapsed / max(c.revealDuration + c.shatterDuration, 0.001)).clampedUnit

@@ -7,8 +7,10 @@
 //
 //      fragment half4 xxxFragment(ShatterQuadOut in [[stage_in]],
 //                                 texture2d<half> src [[texture(0)]],
-//                                 constant shatter::XxxUniforms& u [[buffer(0)]],
-//                                 constant float2& viewSize [[buffer(1)]])
+//                                 constant shatter::XxxUniforms& u [[buffer(0)]])
+//
+//  `src` 只盖住**内容矩形**，不是整张画布（画布被 sprayMargin 撑大 7 倍，
+//  全截下来纯浪费）。所以别用 pt/viewSize 采样，用 shatterContentUV()。
 //
 //  顶点着色器（shatterQuadVertex）是通用的，在 UIKitShatterKernels.metal 里，
 //  所有效果共用，不需要各写一份。
@@ -26,3 +28,10 @@ struct ShatterQuadOut {
     float4 position [[position]];
     float2 pt;              // 视图坐标（pt，y 向下，和 UIKit 一致）
 };
+
+/// 视图坐标 → 快照纹理的 uv。快照只覆盖内容矩形，而 uniforms 里的
+/// center/halfSize 正好描述这个矩形，不用另外传。
+/// 采样器是 clamp_to_zero，落到矩形外自然透明。
+inline float2 shatterContentUV(float2 pt, float2 center, float2 halfSize) {
+    return (pt - (center - halfSize)) / (2.0 * halfSize);
+}

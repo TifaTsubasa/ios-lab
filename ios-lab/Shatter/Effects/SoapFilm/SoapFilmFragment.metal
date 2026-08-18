@@ -14,12 +14,12 @@ using namespace metal;
 
 fragment half4 shatterFilmFragment(ShatterQuadOut in [[stage_in]],
                                    texture2d<half> src [[texture(0)]],
-                                   constant shatter::FilmUniforms& u [[buffer(0)]],
-                                   constant float2& viewSize [[buffer(1)]])
+                                   constant shatter::FilmUniforms& u [[buffer(0)]])
 {
     shatter::FilmShade s = shatter::filmShade(in.pt, u);
     if (s.dead) { return half4(0.0h); }
     // 皂膜要按 samplePos 采样：边缘那圈曲面把内容往里压
-    half4 c = src.sample(kShatterSrcSampler, s.samplePos / viewSize);
+    half4 c = src.sample(kShatterSrcSampler,
+                         shatterContentUV(s.samplePos, u.center, u.halfSize));
     return shatter::filmComposite(c, s);
 }

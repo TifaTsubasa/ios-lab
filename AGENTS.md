@@ -221,6 +221,35 @@ card.shatter(config: config, at: point) {
 同一个行程，Swift 和 Metal 各写了一遍。公式一旦分叉，看起来就是「前沿还没扫到那儿，
 液滴已经飞出来了」。
 
+### 触发延迟
+
+「点了要等一下才有动画」修过一轮，实测数据（模拟器，插桩测 触发 → `frontT` 首次 > 0）：
+
+| | 修复前 | 修复后 |
+| ---- | ---- | ---- |
+| SwiftUI | 106–119ms | 3.8–6.1ms |
+| UIKit（管线已热） | 133–141ms | 21.6–38.9ms |
+| UIKit 首次点击 | ~700ms | 21.6ms |
+
+四条改动，按收益排序：
+
+- **`revealDuration` 曾经是串行前置阶段**，`frontT` 在那 100ms 里恒等于 0 ——
+  墨水那边画面纹丝不动，皂膜那边只是膜亮了一点。这一段就占了总延迟的 75–95%。
+  现在 reveal 和前沿**并行**，前沿从第 0 帧就推。改 `ShatterStage` 时别再把它减回去。
+- **手势要在 touch-down 触发**。`onTapGesture` / `UITapGestureRecognizer` 都是抬手才 fire，
+  按住那段时间用户算进卡顿。换成零距离 `DragGesture` 和 `minimumPressDuration = 0`
+  的 `UILongPressGestureRecognizer`。
+- **UIKit 的快照只截内容自身**。画布被 `sprayMargin` 四边各撑大 130pt，200×120 的卡片
+  会变成 460×380，7 倍面积全是透明像素，而 `drawHierarchy` + CGContext blit + 纹理上传
+  都按面积走。着色器改用 `shatterContentUV()` 从内容矩形映射 uv（见 `ShatterQuad.h`）。
+- **`ShatterMetalContext` 要预热**。它是懒加载的，冷缓存下建 4 条管线实测 **565ms**，
+  不预热就整个砸在第一次点击上。页面出现时调 `ShatterMetalContext.prewarm()`。
+  注意这个数在缓存热的时候只有 1–5ms，**很容易测出假象**，改完 shader 要重新冷测。
+
+`ShatterEffectView.start()` 还会同步画一帧再挂 `CADisplayLink`，省掉等第一次回调的
+15–25ms，顺带消掉「原视图已 hidden、Metal 层还没画」的那一帧空窗；因此 `drawableSize`
+必须在 `init` 里就定好，不能等 `layoutSubviews`。
+
 UIKit 这条路踩到的两个坑：
 
 - **`UIGraphicsImageRendererFormat.preferred()` 在广色域设备上给的是 16 位扩展范围位图**，

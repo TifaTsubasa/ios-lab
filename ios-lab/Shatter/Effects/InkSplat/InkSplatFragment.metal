@@ -14,12 +14,12 @@ using namespace metal;
 
 fragment half4 shatterInkFragment(ShatterQuadOut in [[stage_in]],
                                   texture2d<half> src [[texture(0)]],
-                                  constant shatter::InkUniforms& u [[buffer(0)]],
-                                  constant float2& viewSize [[buffer(1)]])
+                                  constant shatter::InkUniforms& u [[buffer(0)]])
 {
     shatter::InkShade s = shatter::inkShade(in.pt, u);
     if (s.dead) { return half4(0.0h); }
     // 墨不折射内容，原位采样就行
-    half4 c = src.sample(kShatterSrcSampler, in.pt / viewSize);
+    half4 c = src.sample(kShatterSrcSampler,
+                         shatterContentUV(in.pt, u.center, u.halfSize));
     return shatter::inkComposite(c, s);
 }

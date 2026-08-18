@@ -142,6 +142,9 @@ final class UIKitShatterViewController: UIViewController {
     // MARK: 碎裂目标
 
     private func buildTargets() {
+        // 首次建管线很贵，别让它砸在第一次点击上
+        ShatterMetalContext.prewarm()
+
         let card = makeControlCard()
         let image = makeImageCard()
         let field = makeFieldCard()
@@ -150,8 +153,11 @@ final class UIKitShatterViewController: UIViewController {
         for t in targets {
             t.translatesAutoresizingMaskIntoConstraints = false
             view.addSubview(t)
-            let tap = UITapGestureRecognizer(target: self, action: #selector(handleTap(_:)))
-            t.addGestureRecognizer(tap)
+            // 零时长的 LongPress 而不是 Tap：Tap 要等抬手才 fire，
+            // 按住那段时间用户会当成卡顿。这个在 .began 就到手。
+            let press = UILongPressGestureRecognizer(target: self, action: #selector(handlePress(_:)))
+            press.minimumPressDuration = 0
+            t.addGestureRecognizer(press)
         }
 
         NSLayoutConstraint.activate([
@@ -274,7 +280,8 @@ final class UIKitShatterViewController: UIViewController {
 
     // MARK: 交互
 
-    @objc private func handleTap(_ g: UITapGestureRecognizer) {
+    @objc private func handlePress(_ g: UILongPressGestureRecognizer) {
+        guard g.state == .began else { return }
         guard let target = g.view, !target.isHidden else { return }
         let point = g.location(in: target)
         let ok = target.shatter(config: config(for: target), at: point) { [weak self, weak target] in

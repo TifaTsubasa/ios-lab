@@ -17,7 +17,8 @@ nonisolated struct ShatterConfig {
 
     /// 宿主视图的圆角，要和它自己的 clipShape 对上，否则轮廓会错位
     var cornerRadius: CGFloat = 26
-    /// 起手的那一小下（皂膜是「膜显形」，墨水是「起喷」）
+    /// 起手的那一小下（皂膜是「膜显形」）。**和前沿并行**，不是前置阶段 ——
+    /// 前沿从第 0 帧就开始推，这只是叠在上面的一层渐变，见 ShatterStage。
     var revealDuration: Double = 0.10
     /// 前沿扫完整个视图的时长
     var shatterDuration: Double = 0.42
@@ -40,6 +41,8 @@ nonisolated struct ShatterConfig {
 
     static let `default` = ShatterConfig()
 
+    /// reveal 现在和前沿重叠，本可以不算进来；留着是因为最后一批液滴的寿命
+    /// （墨水最长 0.8s）本来就超过 dropletLife，这 0.1s 正好当尾部余量。
     var totalDuration: Double { revealDuration + shatterDuration + dropletLife }
 
     /// 静止时也要跑 shader 吗（各效果自己说了算）
