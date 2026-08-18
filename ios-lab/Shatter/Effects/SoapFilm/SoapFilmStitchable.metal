@@ -1,15 +1,17 @@
 //
-//  SoapFilm.metal
+//  SoapFilmStitchable.metal
 //  ios-lab
 //
-//  肥皂泡膜的 SwiftUI 入口。逐像素的形态与配色全在 Shared/ShatterCore.h 里，
+//  皂膜的 SwiftUI 入口。逐像素的形态与配色全在同目录的 SoapFilmCore.h 里，
 //  这里只负责把 SwiftUI 传进来的散装参数装进 uniforms，并用 `SwiftUI::Layer` 采样内容。
-//  UIKit 那条路线（UIKit/UIKitShatterKernels.metal）调用的是同一套核心。
+//  UIKit 那条路线的入口是 SoapFilmFragment.metal，调用的是同一套核心。
+//
+//  参数是怎么打包进来的见 SoapFilm.swift 的 `shader(...)`。
 //
 
 #include <metal_stdlib>
 #include <SwiftUI/SwiftUI.h>
-#include "../Shared/ShatterCore.h"
+#include "SoapFilmCore.h"
 using namespace metal;
 
 /// center     膜（也就是宿主视图）的中心，视图坐标 pt

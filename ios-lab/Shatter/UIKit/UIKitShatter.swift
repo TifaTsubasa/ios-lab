@@ -2,7 +2,7 @@
 //  UIKitShatter.swift
 //  ios-lab
 //
-//  UIKit 版的「视图碎掉」。
+//  UIKit 版的「视图碎掉」—— 只有框架，不认识任何一种具体效果。
 //
 //  为什么不能直接复用 SwiftUI 那套：`layerEffect` 要求把宿主视图光栅化成纹理再喂给
 //  shader，而 UIKit 托管的图层是系统单独合成的，SwiftUI 栅格不到 —— 实测给
@@ -12,13 +12,14 @@
 //  所以这条路线自己动手：
 //  1. 用 `drawHierarchy` 把目标视图截成一张位图，传成 MTLTexture；
 //  2. 在目标视图上方盖一层 CAMetalLayer，把原视图藏起来；
-//  3. 每帧跑同一套 Shared/ShatterCore.h 的着色核心，内容改从纹理采样。
+//  3. 每帧跑效果自己的 fragment（Effects/<Name>/<Name>Fragment.metal），
+//     内容改从纹理采样。
 //
 //  液滴也换了实现：SwiftUI 那边用 Canvas 逐帧在 CPU 上画，这边做成实例化四边形，
 //  参数一次性传上 GPU，之后每帧只更新一个时间标量。
 //
-//  形态参数、时间线、液滴分布全部复用 Shared/ 里的同一批实现，
-//  所以两条路线的观感是一致的。
+//  「这种效果长什么样」全部甩给 `config.style.effect`（见 Shared/ShatterEffect.swift），
+//  加新效果不用动这个文件。
 //
 
 import UIKit
@@ -28,49 +29,19 @@ import QuartzCore
 
 // MARK: - 与 Metal 端严格对应的内存布局
 
-/// 对应 ShatterCore.h 的 `shatter::FilmUniforms`
-private struct FilmUniformsGPU {
-    var center: SIMD2<Float>
-    var halfSize: SIMD2<Float>
-    var nucleus: SIMD2<Float>
-    var corner: Float
-    var dome: Float
-    var frontT: Float
-    var contentAlpha: Float
-    var filmMix: Float
-    var thicknessNM: Float
-    var time: Float
-    var pad: Float = 0
-}
-
-/// 对应 ShatterCore.h 的 `shatter::InkUniforms`
-private struct InkUniformsGPU {
-    var color: SIMD4<Float>
-    var center: SIMD2<Float>
-    var halfSize: SIMD2<Float>
-    var nucleus: SIMD2<Float>
-    var corner: Float
-    var band: Float
-    var frontT: Float
-    var lobe: Float
-    var warp: Float
-    var phase: Float
-    var speckleCell: Float
-    var speckleLead: Float
-}
-
-/// 对应 UIKitShatterKernels.metal 的 `DropletGPU`
-private struct DropletGPU {
-    var color: SIMD4<Float>
-    var origin: SIMD2<Float>
-    var angle: Float
-    var speed: Float
-    var radius: Float
-    var birth: Float
-    var life: Float
-    var drag: Float
-    var spread: Float
-    var trail: Float
+/// 对应 UIKitShatterKernels.metal 的 `DropletGPU`。
+/// 显式补到 64 字节，不依赖编译器的补位规则。由各效果的 `dropletInstances` 填。
+struct DropletGPU {
+    var color: SIMD4<Float>   // 未预乘
+    var origin: SIMD2<Float>  // 出生点（视图坐标 pt）
+    var angle: Float          // 飞行方向
+    var speed: Float          // 初速 pt/s
+    var radius: Float         // 核半径 pt
+    var birth: Float          // 出生时刻（秒，相对前沿开始）
+    var life: Float           // 寿命（秒）
+    var drag: Float           // 线性阻力系数
+    var spread: Float         // 四边形要比核半径胖多少倍（有光晕的要留出来）
+    var trail: Float          // 拖尾时长（秒）
     var pad0: Float = 0
     var pad1: Float = 0
 }
@@ -80,7 +51,7 @@ private struct DropUniformsGPU {
     var viewSize: SIMD2<Float>
     var t: Float
     var gravity: Float
-    var style: Float
+    var style: Float      // 0 = 有光晕且会渐隐（皂膜）, 1 = 实心不渐隐（墨水）
     var pad0: Float = 0
     var pad1: Float = 0
     var pad2: Float = 0
@@ -94,11 +65,11 @@ final class ShatterMetalContext {
 
     let device: MTLDevice
     let queue: MTLCommandQueue
-    let film: MTLRenderPipelineState
-    let ink: MTLRenderPipelineState
-    /// 墨点是不透明的，走普通 source-over
+    /// 每种风格的 fragment 管线，按 `fragmentFunctionName` 存
+    private let effectPipelines: [String: MTLRenderPipelineState]
+    /// 墨点那类是不透明的，走普通 source-over
     let dropletOver: MTLRenderPipelineState
-    /// 水光要叠加，对应 SwiftUI 那边 Canvas 的 `.plusLighter`
+    /// 水光那类要叠加，对应 SwiftUI 那边 Canvas 的 `.plusLighter`
     let dropletAdd: MTLRenderPipelineState
 
     private init?() {
@@ -125,18 +96,28 @@ final class ShatterMetalContext {
             return try? device.makeRenderPipelineState(descriptor: d)
         }
 
-        guard let film = pipeline("shatterQuadVertex", "shatterFilmFragment", additive: false),
-              let ink = pipeline("shatterQuadVertex", "shatterInkFragment", additive: false),
-              let over = pipeline("shatterDropletVertex", "shatterDropletFragment", additive: false),
+        // 所有风格的管线一次建齐 —— 加新效果时这里自动覆盖到，不用改代码
+        var effects: [String: MTLRenderPipelineState] = [:]
+        for style in ShatterStyle.allCases {
+            let name = style.effect.fragmentFunctionName
+            guard effects[name] == nil else { continue }
+            guard let p = pipeline("shatterQuadVertex", name, additive: false) else { return nil }
+            effects[name] = p
+        }
+
+        guard let over = pipeline("shatterDropletVertex", "shatterDropletFragment", additive: false),
               let add = pipeline("shatterDropletVertex", "shatterDropletFragment", additive: true)
         else { return nil }
 
         self.device = device
         self.queue = queue
-        self.film = film
-        self.ink = ink
+        self.effectPipelines = effects
         self.dropletOver = over
         self.dropletAdd = add
+    }
+
+    func pipeline(for style: ShatterStyle) -> MTLRenderPipelineState? {
+        effectPipelines[style.effect.fragmentFunctionName]
     }
 }
 
@@ -149,13 +130,12 @@ final class ShatterEffectView: UIView {
 
     private let ctx: ShatterMetalContext
     private let config: ShatterConfig
-    private let contentHalf: CGSize
-    private let contentCenter: CGPoint   // 特效视图坐标系里的内容中心（`center` 是 UIView 自己的属性）
-    private let nucleus: CGPoint      // 同上
+    /// 特效视图自己坐标系里的几何（`center` 这个名字被 UIView 占了，所以整包放这儿）
+    private let geometry: ShatterGeometry
+    private let pipeline: MTLRenderPipelineState
     private let texture: MTLTexture
     private let dropletBuffer: MTLBuffer?
     private let dropletCount: Int
-    private let phase: Float
 
     private var link: CADisplayLink?
     private var startTime: CFTimeInterval = 0
@@ -163,7 +143,8 @@ final class ShatterEffectView: UIView {
 
     /// 失败就返回 nil（没有 Metal、视图太小、截图失败……），调用方据此回退成直接隐藏
     init?(target: UIView, config: ShatterConfig, tap: CGPoint?) {
-        guard let ctx = ShatterMetalContext.shared else { return nil }
+        guard let ctx = ShatterMetalContext.shared,
+              let pipeline = ctx.pipeline(for: config.style) else { return nil }
         let size = target.bounds.size
         guard size.width > 1, size.height > 1 else { return nil }
 
@@ -177,20 +158,19 @@ final class ShatterEffectView: UIView {
         else { return nil }
 
         let half = CGSize(width: size.width / 2, height: size.height / 2)
-        let center = CGPoint(x: margin + half.width, y: margin + half.height)
-        let seed = UInt64.random(in: UInt64.min...UInt64.max)
-        let nucleus = nucleusPoint(center: center, halfSize: half, tap: tap, seed: seed)
+        let geometry = ShatterGeometry(center: CGPoint(x: margin + half.width,
+                                                       y: margin + half.height),
+                                       halfSize: half, tap: tap,
+                                       seed: UInt64.random(in: UInt64.min...UInt64.max),
+                                       config: config)
 
         self.ctx = ctx
         self.config = config
-        self.contentHalf = half
-        self.contentCenter = center
-        self.nucleus = nucleus
+        self.geometry = geometry
+        self.pipeline = pipeline
         self.texture = texture
-        self.phase = Float(seed % 1000) / 1000
 
-        let drops = Self.buildDroplets(config: config, seed: seed,
-                                       center: center, half: half, nucleus: nucleus)
+        let drops = Self.buildDroplets(config: config, geometry: geometry)
         self.dropletCount = drops.count
         self.dropletBuffer = drops.isEmpty ? nil : ctx.device.makeBuffer(
             bytes: drops,
@@ -259,22 +239,15 @@ final class ShatterEffectView: UIView {
         guard let enc = cmd.makeRenderCommandEncoder(descriptor: pass) else { return }
 
         let stage = ShatterStage(elapsed: elapsed, config: config)
+        let effect = config.style.effect
         var viewSize = SIMD2<Float>(Float(bounds.width), Float(bounds.height))
 
         enc.setVertexBytes(&viewSize, length: MemoryLayout<SIMD2<Float>>.size, index: 0)
         enc.setFragmentTexture(texture, index: 0)
         enc.setFragmentBytes(&viewSize, length: MemoryLayout<SIMD2<Float>>.size, index: 1)
 
-        switch config.style {
-        case .soapFilm:
-            var u = filmUniforms(stage)
-            enc.setRenderPipelineState(ctx.film)
-            enc.setFragmentBytes(&u, length: MemoryLayout<FilmUniformsGPU>.stride, index: 0)
-        case .inkSplat:
-            var u = inkUniforms(stage)
-            enc.setRenderPipelineState(ctx.ink)
-            enc.setFragmentBytes(&u, length: MemoryLayout<InkUniformsGPU>.stride, index: 0)
-        }
+        enc.setRenderPipelineState(pipeline)
+        effect.encodeUniforms(into: enc, geometry: geometry, stage: stage, config: config)
         enc.drawPrimitives(type: .triangle, vertexStart: 0, vertexCount: 3)
 
         // 液滴：前沿开始推进之后才有
@@ -283,8 +256,8 @@ final class ShatterEffectView: UIView {
             var du = DropUniformsGPU(viewSize: viewSize,
                                      t: Float(t),
                                      gravity: Float(config.gravity),
-                                     style: config.style == .inkSplat ? 1 : 0)
-            enc.setRenderPipelineState(config.style == .inkSplat ? ctx.dropletOver : ctx.dropletAdd)
+                                     style: effect.dropletsAreAdditive ? 0 : 1)
+            enc.setRenderPipelineState(effect.dropletsAreAdditive ? ctx.dropletAdd : ctx.dropletOver)
             enc.setVertexBuffer(buffer, offset: 0, index: 0)
             enc.setVertexBytes(&du, length: MemoryLayout<DropUniformsGPU>.stride, index: 1)
             enc.drawPrimitives(type: .triangle, vertexStart: 0, vertexCount: 6,
@@ -294,38 +267,6 @@ final class ShatterEffectView: UIView {
         enc.endEncoding()
         cmd.present(drawable)
         cmd.commit()
-    }
-
-    private func filmUniforms(_ stage: ShatterStage) -> FilmUniformsGPU {
-        let inner = CGSize(width: contentHalf.width * 2, height: contentHalf.height * 2)
-        return FilmUniformsGPU(
-            center: SIMD2(Float(contentCenter.x), Float(contentCenter.y)),
-            halfSize: SIMD2(Float(contentHalf.width), Float(contentHalf.height)),
-            nucleus: SIMD2(Float(nucleus.x), Float(nucleus.y)),
-            corner: Float(config.cornerRadius),
-            dome: Float(domeDepth(inner, config)),
-            frontT: Float(stage.frontT),
-            contentAlpha: Float(stage.contentAlpha),
-            filmMix: Float(stage.filmMix),
-            thicknessNM: Float(stage.thickness),
-            // 取模要取小：这个值会乘上流速喂给噪声坐标，太大 float32 精度不够
-            time: Float(CACurrentMediaTime().truncatingRemainder(dividingBy: 60)))
-    }
-
-    private func inkUniforms(_ stage: ShatterStage) -> InkUniformsGPU {
-        InkUniformsGPU(
-            color: config.ink.color.rgbaComponents(alpha: 1),
-            center: SIMD2(Float(contentCenter.x), Float(contentCenter.y)),
-            halfSize: SIMD2(Float(contentHalf.width), Float(contentHalf.height)),
-            nucleus: SIMD2(Float(nucleus.x), Float(nucleus.y)),
-            corner: Float(config.cornerRadius),
-            band: Float(config.ink.bandWidth),
-            frontT: Float(stage.frontT),
-            lobe: Float(config.ink.lobe),
-            warp: Float(config.ink.warp),
-            phase: phase,
-            speckleCell: Float(config.ink.speckleCell),
-            speckleLead: Float(config.ink.speckleLead))
     }
 
     // MARK: 准备数据
@@ -377,67 +318,32 @@ final class ShatterEffectView: UIView {
     }
 
     /// 把 Shared/ShatterModel.swift 里那套归一化液滴，按这次的尺寸解析成 GPU 实例。
-    /// 各项系数刻意和 SwiftUI 那边 Canvas 的画法保持一致。
-    private static func buildDroplets(config: ShatterConfig, seed: UInt64,
-                                      center: CGPoint, half: CGSize,
-                                      nucleus: CGPoint) -> [DropletGPU] {
-        let drops = makeDroplets(count: config.dropletCount, style: config.style, seed: seed)
+    /// 出生点、方向、初速这些通用量在这里算，尺寸/颜色/拖尾交给效果自己。
+    private static func buildDroplets(config: ShatterConfig,
+                                      geometry g: ShatterGeometry) -> [DropletGPU] {
+        let drops = makeDroplets(count: config.dropletCount, style: config.style, seed: g.seed)
         guard !drops.isEmpty else { return [] }
 
-        let reach = frontReach(nucleus: nucleus, center: center, halfSize: half, config: config)
-        let frontSpeed = reach / config.shatterDuration
-        let unit = Float(min(half.width, half.height))
-        let inky = config.style == .inkSplat
+        let effect = config.style.effect
+        let frontSpeed = g.frontSpeed(config)
+        let unit = Float(min(g.halfSize.width, g.halfSize.height))
 
         var out: [DropletGPU] = []
-        out.reserveCapacity(drops.count * (inky ? 2 : 1))
+        out.reserveCapacity(drops.count)
 
         for d in drops {
-            let origin = CGPoint(x: center.x + CGFloat(d.origin.x) * half.width,
-                                 y: center.y + CGFloat(d.origin.y) * half.height)
-            let dx = origin.x - nucleus.x, dy = origin.y - nucleus.y
+            let origin = CGPoint(x: g.center.x + CGFloat(d.origin.x) * g.halfSize.width,
+                                 y: g.center.y + CGFloat(d.origin.y) * g.halfSize.height)
+            let dx = origin.x - g.nucleus.x, dy = origin.y - g.nucleus.y
             let dist = max(hypot(dx, dy), 0.001)
             // 前沿扫到这里的时刻，就是这颗液滴被甩出来的时刻
-            let birth = Float(dist / reach) * Float(config.shatterDuration)
+            let birth = Float(dist / g.reach) * Float(config.shatterDuration)
             let angle = Float(atan2(dy, dx)) + d.angleJitter
             let speed = d.speedFactor * Float(frontSpeed)
 
-            let radius: Float, spread: Float, trail: Float
-            let color: SIMD4<Float>
-            if inky {
-                radius = max(0.8, d.sizeFactor * unit * 0.030)
-                spread = 1.0
-                trail = 1.0 / 46
-                let base = d.isFine ? config.ink.color.shadedInk(0.82) : config.ink.color
-                color = base.rgbaComponents(alpha: 1)
-            } else {
-                radius = max(0.45, d.sizeFactor * unit * 0.032)
-                spread = 1.5
-                trail = d.isFine ? 1.0 / 26 : 1.0 / 34
-                color = Color(hue: Double(d.hue),
-                              saturation: d.isFine ? 0.04 : 0.11,
-                              brightness: 1)
-                    .rgbaComponents(alpha: d.isFine ? 0.7 : 1.0)
-            }
-
-            out.append(DropletGPU(color: color,
-                                  origin: SIMD2(Float(origin.x), Float(origin.y)),
-                                  angle: angle, speed: speed, radius: radius,
-                                  birth: birth, life: d.life, drag: d.drag,
-                                  spread: spread, trail: trail))
-
-            // 墨水的大颗要挂一颗卫星小点。轨迹是原点的刚性平移，所以只要把出生点
-            // 挪一下就能得到和 SwiftUI 那边一样的相对位置。
-            if inky, !d.isFine {
-                let off = CGFloat(radius) * 2.1
-                let sx = origin.x + cos(CGFloat(d.hue) * .pi * 2) * off
-                let sy = origin.y + sin(CGFloat(d.hue) * .pi * 2) * off
-                out.append(DropletGPU(color: color,
-                                      origin: SIMD2(Float(sx), Float(sy)),
-                                      angle: angle, speed: speed, radius: radius * 0.34,
-                                      birth: birth, life: d.life, drag: d.drag,
-                                      spread: spread, trail: trail))
-            }
+            out += effect.dropletInstances(for: d, origin: origin, angle: angle,
+                                           speed: speed, birth: birth,
+                                           unit: unit, config: config)
         }
         return out
     }

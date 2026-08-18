@@ -4,7 +4,7 @@
 //
 //  Demo：点一下，视图从被点到的那一点碎掉。两种风格可切换 ——
 //  皂膜（肥皂泡破裂）和墨水（斯普拉遁式喷射）。
-//  效果本体在 ShatterModifier.swift + SoapFilm.metal / InkSplat.metal，这里只负责摆样式和调参。
+//  效果本体在 ShatterModifier.swift + Shatter/Effects/，这里只负责摆样式和调参。
 //
 
 import SwiftUI

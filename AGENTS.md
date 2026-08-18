@@ -27,19 +27,27 @@ ios-lab/                            # ← Xcode 同步组，放进来的文件�
 │   ├── InAppDynamicIslandView.swift # Demo 页
 │   ├── InAppDynamicIsland.swift     # 可复用的岛体组件 + IslandMetrics
 │   └── Usage.md                     # 组件使用指南（会被打进 bundle 根，见下）
-├── Shatter/                        # Demo：视图碎裂（两种风格 × 两条渲染路线）
-│   ├── Shared/                      # 两条路线共用，改这里两边一起变
-│   │   ├── ShatterCore.h            #   着色核心：形态 + 配色（.metal 用相对路径 include）
-│   │   ├── ShatterConfig.swift      #   风格枚举 + 参数 + ShatterConfig
-│   │   └── ShatterModel.swift       #   时间线、破裂点与行程、液滴分布、Color 小工具
+├── Shatter/                        # Demo：视图碎裂（两种效果 × 两条渲染路线）
+│   ├── Shared/                      # 框架与效果的公共部分
+│   │   ├── ShatterEffect.swift      #   ★ 效果协议 + 「怎么加一种新效果」
+│   │   ├── ShatterStyle.swift       #   风格枚举 = 效果注册表（唯一的分发点）
+│   │   ├── ShatterConfig.swift      #   通用参数（时长、液滴数、重力、余量）
+│   │   ├── ShatterModel.swift       #   时间线、几何、液滴分布与运动、Color 小工具
+│   │   └── ShatterShading.h         #   通用着色工具：SDF / hash / noise / fbm
+│   ├── Effects/                     # 一种效果 = 一个文件夹，跨两条路线自成一体
+│   │   ├── SoapFilm/                #   皂膜：薄膜干涉 + 孔洞沿膜面扩张
+│   │   │   ├── SoapFilm.swift       #     参数 + ShatterEffect 实现（两条路线的胶水）
+│   │   │   ├── SoapFilmCore.h       #     逐像素形态与配色，两条路线共用这一份
+│   │   │   ├── SoapFilmStitchable.metal  # SwiftUI 入口（内容来自 SwiftUI::Layer）
+│   │   │   └── SoapFilmFragment.metal    # UIKit 入口（内容来自快照纹理）
+│   │   └── InkSplat/                #   墨水：斯普拉遁式喷射（同构的四个文件）
 │   ├── SwiftUI/
-│   │   ├── ShatterModifier.swift    #   .shatter() 修饰器 + Canvas 液滴
-│   │   ├── SoapFilm.metal           #   stitchable 入口：肥皂泡膜
-│   │   ├── InkSplat.metal           #   stitchable 入口：斯普拉遁式墨水喷射
+│   │   ├── ShatterModifier.swift    #   .shatter() 修饰器：计时 / layerEffect / 液滴 Canvas
 │   │   └── ShatterView.swift        #   Demo 页
 │   └── UIKit/
 │       ├── UIKitShatter.swift       #   快照 + CAMetalLayer + UIView.shatter()
-│       ├── UIKitShatterKernels.metal #  全屏三角形 + 实例化液滴
+│       ├── ShatterQuad.h            #   效果 fragment 的签名契约
+│       ├── UIKitShatterKernels.metal #  与效果无关的那半边：全屏三角形 + 实例化液滴
 │       └── UIKitShatterView.swift   #   Demo 页
 └── RustCore/                       # Demo：RustCore 跨端架构
     ├── RustCoreLabView.swift
@@ -73,8 +81,8 @@ ipc/  rust/  web/  scripts/         # RustCore Demo 专用，必须放在 ios-la
 | 卷带槽元素复刻 | `WindingSlotElements/`（`WindingSlotElementsView.swift`） | 复刻参考图中卷带槽、滑块条、导向线等素材元素的静态外观 |
 | RustCore 跨端架构 | `RustCore/`（`RustCoreLabView.swift` 等，见下节） | 对标 Raycast 2.0 的三层架构最小实践：SwiftUI 壳 → WKWebView(React) → Rust core，契约一处声明、三端生成 |
 | App 内灵动岛 | `DynamicIsland/`（`InAppDynamicIsland.swift` + `InAppDynamicIslandView.swift`） | App 内绘制的模拟灵动岛组件，压在系统挖孔位置并描一圈红框；点灵动岛展开、点其他位置收起；页面开 `statusBarHidden(true)`，其他 App 的灵动岛会消失（见下节） |
-| 视图碎裂（SwiftUI） | `Shatter/SwiftUI/` | 点哪儿从哪儿碎，两种风格可切换：皂膜（薄膜干涉 + 孔洞扩张）和墨水（斯普拉遁式喷射）；见下节 |
-| 视图碎裂（UIKit） | `Shatter/UIKit/` | 同样两种风格，但作用在**真的 UIKit 控件**上。SwiftUI 那条路对 UIKit 是失效的，必须另起一套；见下节 |
+| 视图碎裂（SwiftUI） | `Shatter/SwiftUI/`（效果在 `Shatter/Effects/`） | 点哪儿从哪儿碎，两种风格可切换：皂膜（薄膜干涉 + 孔洞扩张）和墨水（斯普拉遁式喷射）；见下节 |
+| 视图碎裂（UIKit） | `Shatter/UIKit/`（效果共用同一批 `Effects/`） | 同样两种风格，但作用在**真的 UIKit 控件**上。SwiftUI 那条路对 UIKit 是失效的，必须另起一套；见下节 |
 
 ### 灵动岛组件 `InAppDynamicIsland`
 
@@ -131,7 +139,7 @@ card
 
 视图**不会先变形**：它保持自己的形状，起手 → 前沿扫过 → 喷溅，一气呵成。
 `ShatterConfig.style` 切换风格，通用参数（时长、液滴数、重力）在顶层，
-风格专属参数分别在 `.film` 和 `.ink` 里。
+风格专属参数分别在 `.film` 和 `.ink` 里（定义在各自的 `Effects/<Name>/<Name>.swift`）。
 
 | 风格 | 形态 |
 | ---- | ---- |
@@ -192,12 +200,26 @@ card.shatter(config: config, at: point) {
 在目标上方盖一层 `CAMetalLayer`，`CADisplayLink` 驱动。液滴不再逐帧 CPU 画，
 而是实例化四边形，参数一次性传上 GPU，之后每帧只更新一个时间标量。
 
-两条路线**共用 `Shared/`**：`ShatterCore.h` 里逐像素的形态与配色只有一份，各自的入口
-只负责「参数怎么传」和「内容从哪儿采样」；`ShatterConfig.swift` / `ShatterModel.swift`
-里的参数、时间线、破裂点、液滴分布也是同一份，所以两边观感一致。
+两条路线**共用效果本身**：`Effects/<Name>/<Name>Core.h` 里逐像素的形态与配色只有一份，
+两个入口只负责「参数怎么传」和「内容从哪儿采样」。核心因此拆成两步 ——
+`xxxShade(pos, uniforms)` 只算形态、顺带给出该去哪儿采样，`xxxComposite(src, shade)`
+拿到采样结果再出颜色；采样那一步由各自的入口做。时间线、破裂点、液滴分布也是同一份，
+所以两边观感一致。
 
-`.metal` 跨目录用相对路径包含共用头（`#include "../Shared/ShatterCore.h"`），
+`.metal` 跨目录用相对路径包含头文件（`#include "../../Shared/ShatterShading.h"`），
 不需要给 target 配 header search path。
+
+### 加一种新的碎裂效果
+
+框架（`SwiftUI/`、`UIKit/`）只跟 `ShatterEffect` 协议打交道，不认识任何具体效果，
+所以加效果**不用改框架里的任何 switch**。照着 `Effects/SoapFilm/` 建一个文件夹写四个
+文件（Core.h / Stitchable.metal / Fragment.metal / .swift），再改两处注册：
+`ShatterStyle` 加一个 case 指到新类型，`ShatterConfig` 挂一行专属参数。完整清单见
+`Shared/ShatterEffect.swift` 的头注释。
+
+唯一必须手工对齐的东西是 **`frontReach`** —— 着色器算前沿位置、液滴算出生时刻用的是
+同一个行程，Swift 和 Metal 各写了一遍。公式一旦分叉，看起来就是「前沿还没扫到那儿，
+液滴已经飞出来了」。
 
 UIKit 这条路踩到的两个坑：
 

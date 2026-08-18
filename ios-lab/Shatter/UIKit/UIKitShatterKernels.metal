@@ -2,60 +2,34 @@
 //  UIKitShatterKernels.metal
 //  ios-lab
 //
-//  UIKit 路线的渲染管线。和 SwiftUI 路线唯一的区别是**内容从哪儿来**：
-//  那边由 `SwiftUI::Layer` 提供，这边是宿主视图的一张快照纹理。
-//  每像素的形态与配色仍然走 Shared/ShatterCore.h，两条路线不会各自漂移。
+//  UIKit 路线里**与效果无关**的那半边管线：盖住全屏的顶点着色器，和液滴。
+//  各效果的 fragment 在 Effects/<Name>/<Name>Fragment.metal，契约见 ShatterQuad.h。
 //
-//  液滴这边也不一样：SwiftUI 那边用 Canvas 逐帧在 CPU 上画，这边直接做成
+//  液滴的画法和 SwiftUI 那边不一样：那边用 Canvas 逐帧在 CPU 上画，这边做成
 //  实例化的四边形 —— 每颗液滴的参数一次性传上去，之后每帧只变一个时间标量，
 //  位置在顶点着色器里算，CPU 全程不参与。
 //
+//  液滴的形状对所有效果是同一套（胶囊 + 可选光晕），效果之间的差别压缩成
+//  `DropletGPU` 里的几个数 + 一个 `style` 分支，由 Swift 侧的
+//  `dropletInstances(...)` 填。加新效果一般不用动这个文件。
+//
 
 #include <metal_stdlib>
-#include "../Shared/ShatterCore.h"
+#include "ShatterQuad.h"
 using namespace metal;
-
-constexpr sampler kSrcSampler(filter::linear, address::clamp_to_zero);
 
 // MARK: - 全屏三角形
 
-struct QuadOut {
-    float4 position [[position]];
-    float2 pt;              // 视图坐标（pt，y 向下，和 UIKit 一致）
-};
-
 /// 一个盖住全屏的大三角形，比四边形少一次顶点调用，也没有对角线接缝
-vertex QuadOut shatterQuadVertex(uint vid [[vertex_id]],
-                                 constant float2& viewSize [[buffer(0)]])
+vertex ShatterQuadOut shatterQuadVertex(uint vid [[vertex_id]],
+                                        constant float2& viewSize [[buffer(0)]])
 {
     float2 uv = float2((vid << 1) & 2, vid & 2);   // (0,0) (2,0) (0,2)
-    QuadOut o;
+    ShatterQuadOut o;
     // uv.y = 0 要落在屏幕**上**边，所以 y 取负 —— 这样 pt 就是 y 向下的 UIKit 坐标
     o.position = float4(uv * float2(2.0, -2.0) + float2(-1.0, 1.0), 0.0, 1.0);
     o.pt = uv * viewSize;
     return o;
-}
-
-fragment half4 shatterFilmFragment(QuadOut in [[stage_in]],
-                                   texture2d<half> src [[texture(0)]],
-                                   constant shatter::FilmUniforms& u [[buffer(0)]],
-                                   constant float2& viewSize [[buffer(1)]])
-{
-    shatter::FilmShade s = shatter::filmShade(in.pt, u);
-    if (s.dead) { return half4(0.0h); }
-    half4 c = src.sample(kSrcSampler, s.samplePos / viewSize);
-    return shatter::filmComposite(c, s);
-}
-
-fragment half4 shatterInkFragment(QuadOut in [[stage_in]],
-                                  texture2d<half> src [[texture(0)]],
-                                  constant shatter::InkUniforms& u [[buffer(0)]],
-                                  constant float2& viewSize [[buffer(1)]])
-{
-    shatter::InkShade s = shatter::inkShade(in.pt, u);
-    if (s.dead) { return half4(0.0h); }
-    half4 c = src.sample(kSrcSampler, in.pt / viewSize);
-    return shatter::inkComposite(c, s);
 }
 
 // MARK: - 液滴
